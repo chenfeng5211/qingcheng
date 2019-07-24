@@ -1,5 +1,6 @@
 package com.qingcheng.service.impl;
 
+import com.alibaba.druid.util.StringUtils;
 import com.alibaba.dubbo.config.annotation.Service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -148,11 +149,14 @@ public class AdminServiceImpl implements AdminService {
         Admin admin = adminRoleCombination.getAdmin();
         List<Integer> roleIds = adminRoleCombination.getRoleId();
 
+        if(!StringUtils.isEmpty(admin.getPassword())) {
 //        密码加密
-        String gensalt = BCrypt.gensalt();
-        String hashpw = BCrypt.hashpw(admin.getPassword(), gensalt);
-        admin.setPassword(hashpw);
-        adminMapper.insertSelective(admin);
+            String gensalt = BCrypt.gensalt();
+            String hashpw = BCrypt.hashpw(admin.getPassword(), gensalt);
+            admin.setPassword(hashpw);
+        }
+
+            adminMapper.insertSelective(admin);
 
 //        循环遍历角色集合，并插入数据库中
         for (int roleId : roleIds) {
@@ -201,10 +205,12 @@ public class AdminServiceImpl implements AdminService {
     public void updateAdminRole(AdminRoleCombination adminRoleCombination) {
 
         if(adminRoleCombination != null){
-//            密码加密
             Admin admin = adminRoleCombination.getAdmin();
-            String hashpw = BCrypt.hashpw(admin.getPassword(), BCrypt.gensalt());
-            admin.setPassword(hashpw);
+            if(!StringUtils.isEmpty(admin.getPassword())) {
+//            密码加密
+                String hashpw = BCrypt.hashpw(admin.getPassword(), BCrypt.gensalt());
+                admin.setPassword(hashpw);
+            }
             adminMapper.updateByPrimaryKey(admin);
 //            删除中间表关联的管理员和角色
             Example example = new Example(AdminAndRole.class);
