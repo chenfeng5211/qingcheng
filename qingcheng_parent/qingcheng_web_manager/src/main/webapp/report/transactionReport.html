@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>交易统计</title>
+    <link rel="stylesheet" href="../css/elementui.css">
+    <link rel="stylesheet" href="../plugins/font-awesome/css/font-awesome.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div id="app">
+    <el-date-picker
+            v-model="dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            @change="fetchData()">
+    </el-date-picker>
+
+    <div id="main1" style="width: 600px;height:400px;"></div>
+    <div id="main2" style="width: 800px;height:600px;"></div>
+
+    <el-table
+            :data="tableData"
+            style="width: 120%"
+            :row-class-name="tableRowClassName">
+        <el-table-column
+                prop="countDate"
+                label="时间"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="vc"
+                label="访问量"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="orderUserNum"
+                label="下单人数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="orderNum"
+                label="订单人数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="orderPieceNum"
+                label="下单件数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="orderEffectiveNum"
+                label="有效订单数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="orderMoney"
+                label="下单金额"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="returnMoney"
+                label="退款金额"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="payUserNum"
+                label="付款人数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="payOrderNum"
+                label="付款订单数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="payPieceNum"
+                label="付款件数"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="payMoney"
+                label="付款金额"
+                width="120">
+        </el-table-column>
+        <el-table-column
+                prop="payCustomerPrice"
+                label="客单价"
+                width="120">
+        </el-table-column>
+    </el-table>
+</div>
+</body>
+<script src="/js/util.js"></script>
+<script src="/js/vue.js"></script>
+<script src="/js/axios.js"></script>
+<script src="/js/elementui.js"></script>
+<script src="/js/echarts.min.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                tableData: [],
+                pojo: {},
+                dateRange: []
+            }
+        },
+
+        methods: {
+            fetchData() {
+                let date1 = this.dateRange[0].Format("yyyy-MM-dd");
+                let date2 = this.dateRange[1].Format("yyyy-MM-dd");
+                axios.get(`/transactionReport/findTransactionReport.do?date1=${date1}&date2=${date2}`).then(response => {
+                    this.tableData = response.data;
+                });
+
+                let legendData = [];
+                let data = [];
+                let vcData = 0;//浏览量
+                let orderUserNumData = 0;//用户下单数
+                let payUserNumData = 0;//付款用户数
+                let time = [];//时间
+                let payMoney = [];//付款金额
+                let returnMoney = [];//退款金额
+                let payUserNum = [];//付款人数
+                let orderTransfer = [];//下单转化率
+                let payTransfer = [];//付款转化率
+                let successTransfer = [];//成交转化率
+                legendData.push('浏览', '下单', '付款');
+                for (let i = 0; i < this.tableData.length; i++) {
+
+                    vcData += this.tableData[i].vc;
+                    orderUserNumData += this.tableData[i].orderUserNum;
+                    payUserNumData += this.tableData[i].payUserNum;
+                    time.push(this.tableData[i].countDate);
+                    payMoney.push(this.tableData[i].payMoney);
+                    returnMoney.push(this.tableData[i].returnMoney);
+                    payUserNum.push(this.tableData[i].payUserNum);
+                    orderTransfer.push(this.tableData[i].orderUserNum/this.tableData[i].vc);
+                    payTransfer.push(this.tableData[i].payUserNum/this.tableData[i].orderUserNum);
+                    successTransfer.push(this.tableData[i].payUserNum/this.tableData[i].vc);
+                }
+                data.push({name: '浏览', value: vcData},
+                    {name: '下单', value: orderUserNumData},
+                    {name: '付款', value: payUserNumData});
+
+
+                let myChart1 = echarts.init(document.getElementById('main1'));
+                let myChart2 = echarts.init(document.getElementById('main2'));
+
+                 let option2 = {
+                        title: {
+                            text: '交易统计折线图'
+                        },
+                        tooltip: {
+                            trigger: 'axis'
+                        },
+                        legend: {
+                            data: ['付款金额', '退款金额', '付款人数', '下单转换率', '付款转换率', '成交转换率']
+                        },
+                        grid: {
+                            left: '3%',
+                            right: '4%',
+                            bottom: '3%',
+                            containLabel: true
+                        },
+                        toolbox: {
+                            feature: {
+                                saveAsImage: {}
+                            }
+                        },
+                        xAxis: {
+                            type: 'category',
+                            boundaryGap: false,
+                            data: time
+                        },
+                        yAxis: {
+                            type: 'value'
+                        },
+                        series: [
+                            {
+                                name: '付款金额',
+                                type: 'line',
+                                stack: '总量',
+                                data: payMoney
+                            },
+                            {
+                                name: '退款金额',
+                                type: 'line',
+                                stack: '总量',
+                                data: returnMoney
+                            },
+                            {
+                                name: '付款人数',
+                                type: 'line',
+                                stack: '总量',
+                                data: payUserNum
+                            },
+
+                            {
+                                name: '下单转换率',
+                                type: 'line',
+                                stack: '总量',
+                                data: orderTransfer
+                            },
+                            {
+                                name: '付款转换率',
+                                type: 'line',
+                                stack: '总量',
+                                data: payTransfer
+                            },
+                            {
+                                name: '成交转换率',
+                                type: 'line',
+                                stack: '总量',
+                                data: successTransfer
+                            }
+                        ]
+                    };
+
+
+                   let option1 = {
+                        title: {
+                            text: '交易统计',
+                            subtext: '纯属虚构'
+                        },
+                        tooltip: {
+                            trigger: 'item',
+                            formatter: "{a} <br/>{b} : {c}%"
+                        },
+                        toolbox: {
+                            feature: {
+                                dataView: {readOnly: false},
+                                restore: {},
+                                saveAsImage: {}
+                            }
+                        },
+                        legend: {
+                            data: legendData
+                        },
+                        calculable: true,
+                        series: [
+                            {
+                                name: '交易统计',
+                                type: 'funnel',
+                                left: '10%',
+                                top: 60,
+                                //x2: 80,
+                                bottom: 60,
+                                width: '60%',
+                                // height: {totalHeight} - y - y2,
+                                min: 0,
+                                max: 100,
+                                minSize: '0%',
+                                maxSize: '100%',
+                                sort: 'descending',
+                                gap: 2,
+                                label: {
+                                    show: true,
+                                    position: 'inside'
+                                },
+                                labelLine: {
+                                    length: 10,
+                                    lineStyle: {
+                                        width: 1,
+                                        type: 'solid'
+                                    }
+                                },
+                                itemStyle: {
+                                    borderColor: '#fff',
+                                    borderWidth: 1
+                                },
+                                emphasis: {
+                                    label: {
+                                        fontSize: 20
+                                    }
+                                },
+                                data: data
+                            }
+                        ]
+                    };
+                // 使用刚指定的配置项和数据显示图表。
+                myChart1.setOption(option1);
+                myChart2.setOption(option2);
+                window.addEventListener("resize",function(){
+
+                    myChart2.resize();
+                    myChart1.resize();
+
+                });
+            },
+            test() {
+
+            }
+        }
+    })
+</script>
+</html>

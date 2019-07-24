@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+             xmlns:beans="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+						http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security.xsd">
+
+<!--    排除拦截页面-->
+    <http pattern="/login.html" security="none"/>
+
+    <http pattern="/css/**" security="none"/>
+    <http pattern="/img/**" security="none"/>
+    <http pattern="/js/**" security="none"/>
+    <http pattern="/*.ico" security="none"/>
+<!--    <http pattern="/*.do" security="none"/>-->
+
+
+<!--页面拦截规则-->
+    <http>
+<!--        配置拦截规则和访问的角色-->
+<!--        isAuthenticated():只要登录就可以访问-->
+        <intercept-url pattern="/*/find/*" access="isAuthenticated()"/>
+        <intercept-url pattern="/brand/*.do" access="hasAuthority('brand')"/>
+        <intercept-url pattern="/spu/save.do" access="hasAnyAuthority('good_add','good_edit')"/>
+
+<!--        不指定，spring自定生成，表单登录-->
+<!--        <form-login/>-->
+        <form-login login-page="/login.html"
+                    default-target-url="/main.html"
+                    authentication-failure-url="/login.html"
+                    authentication-success-handler-ref="authenticationSuccessHandler"/>
+<!--        关闭csrf验证，跨站请求伪造-->
+        <csrf disabled="true"/>
+<!--        退出-->
+        <logout/>
+<!--        同源策略-->
+        <headers>
+            <frame-options policy="SAMEORIGIN"/>
+        </headers>
+    </http>
+<!--    认证管理器-->
+    <authentication-manager>
+        <authentication-provider user-service-ref="detailsService">
+<!--            <user-service>-->
+<!--&lt;!&ndash;                noop:no operation没有操作，表示没有加密 {}表示加密策略，如填bcrypt&ndash;&gt;-->
+<!--&lt;!&ndash;                <user name="admin" password="{noop}123456" authorities="ROLE_ADMIN"/>&ndash;&gt;-->
+<!--&lt;!&ndash;                <user name="admin" password="123456" authorities="ROLE_ADMIN"/>&ndash;&gt;-->
+
+<!--            </user-service>-->
+
+<!--            上面的{}可以掉-->
+            <password-encoder ref="bCryptPasswordEncoder"/>
+        </authentication-provider>
+    </authentication-manager>
+
+<!--    访问数据库配置的自定义实现UserDetailsService-->
+    <beans:bean class="com.qingcheng.controller.UserDetailServiceImpl" id="detailsService"/>
+<!--    配置密码加密第二种方式-->
+    <beans:bean class="org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder" id="bCryptPasswordEncoder"/>
+    <beans:bean class="com.qingcheng.controller.AuthenticationSuccessHandlerImpl" id="authenticationSuccessHandler"/>
+</beans:beans>

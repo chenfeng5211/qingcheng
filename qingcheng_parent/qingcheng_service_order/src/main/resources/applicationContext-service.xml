@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.2.xsd
+	http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+<!--    雪花分布式id，每个服务层节点都不同-->
+	<bean class="com.qingcheng.util.IdWorker" id="idWorker">
+        <constructor-arg name="datacenterId" value="1"/>
+        <constructor-arg name="workerId" value="2"/>
+    </bean>
+</beans>

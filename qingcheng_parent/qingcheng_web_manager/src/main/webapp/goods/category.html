@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>category管理</title>
+    <meta content="IE=edge" http-equiv="X-UA-Compatible">
+    <!-- 引入样式 -->
+    <link href="../css/elementui.css" rel="stylesheet">
+    <link href="../plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet">
+    <link href="../css/style.css" rel="stylesheet">
+
+    <!-- 上传图片框样式，不使用上传组件可以删除此样式 -->
+    <style>
+        .avatar-uploader .el-upload {
+            border: 1px dashed #d9d9d9;
+            border-radius: 6px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .avatar-uploader .el-upload:hover {
+            border-color: #409EFF;
+        }
+
+        .avatar-uploader-icon {
+            font-size: 28px;
+            color: #8c939d;
+            width: 150px;
+            height: 70px;
+            line-height: 150px;
+            text-align: center;
+        }
+
+        .avatar {
+            width: 150px;
+            height: 70px;
+            display: block;
+        }
+
+    </style>
+</head>
+<body class="hold-transition">
+<div id="app">
+
+    <div class="content-header">
+        <h1>管理
+            <small>category管理</small>
+        </h1>
+        <el-breadcrumb class="breadcrumb" separator-class="el-icon-arrow-right">
+            <el-breadcrumb-item :to="{ path: '/' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item>管理</el-breadcrumb-item>
+            <el-breadcrumb-item>category管理</el-breadcrumb-item>
+        </el-breadcrumb>
+    </div>
+
+    <div class="app-container">
+        <div class="box">
+            <!--            增加种类前，先传入当前上级id-->
+            <el-button @click="formVisible = true, pojo={parentId:searchMap.parentId}" size="mini" size="small"
+                       type="primary">新增
+            </el-button>
+            <el-button @click="returnParentId()" size="mini" size="small" type="primary">返回上级</el-button>
+
+            <el-table :data="tableData" border style="width: 100%">
+                <el-table-column label="分类ID" prop="id" width="100"></el-table-column>
+                <el-table-column label="分类名称" prop="name" width="200"></el-table-column>
+                <el-table-column label="是否显示" width="150">
+                    <template slot-scope="scope">
+                        <el-switch
+                                v-model="scope.row.isShow"
+                                active-color="#13ce66"
+                                inactive-color="#ff4949"
+                                active-value="1"
+                                inactive-value="0">
+                        </el-switch>
+                    </template>
+                </el-table-column>
+                <el-table-column label="是否导航" width="150">
+                    <template slot-scope="scope">
+                        <el-switch
+                                v-model="scope.row.isMenu"
+                                active-color="#13ce66"
+                                inactive-color="#ff4949"
+                                active-value="1"
+                                inactive-value="0">
+                        </el-switch>
+                    </template>
+                </el-table-column>
+                <el-table-column label="排序" prop="seq" width="100"></el-table-column>
+                <el-table-column label="上级" prop="parentId" width="100"></el-table-column>
+                <el-table-column label="级别" width="100">
+                    <template slot-scope="scope">
+                        {{parentIds.length + 1}}
+                    </template>
+                </el-table-column>
+
+                <el-table-column label="模板" prop="templateId" width="100">
+                    <template slot-scope="scope">
+                        <el-select v-model="pojo.templateId" filterable placeholder="请选择">
+                            <el-option
+                                    v-for="item in templateList"
+                                    :key="item.id"
+                                    :label="item.name"
+                                    :value="item.id"
+                                    :disabled="true ">
+                            </el-option>
+                        </el-select>
+                    </template>
+                </el-table-column>
+
+                <el-table-column
+                        label="设置">
+                    <template slot-scope="scope">
+                        <div v-if="scope.row.parentId < 2">
+                            <el-button @click="goDown(scope.row.parentId)" size="mini" size="small" type="primary">查看下级
+                            </el-button>
+
+                            <div v-if="scope.row.parentId > 0">
+                                <el-button @click="goUp(scope.row.parentId)" size="mini" size="small"
+                                           type="danger">返回上级
+                                </el-button>
+                            </div>
+                    </template>
+                </el-table-column>
+                <el-table-column
+                        label="操作">
+                    <template slot-scope="scope">
+                        <el-button @click="edit(scope.row.id)" size="mini" size="small" type="primary">修改</el-button>
+                        <el-button @click="dele(scope.row.id)" size="mini" size="small" type="danger">删除</el-button>
+                    </template>
+                </el-table-column>
+            </el-table>
+
+            <div class="add-form">
+                <!--弹出窗口-->
+                <el-dialog :visible.sync="formVisible" title="编辑">
+                    <el-form label-width="80px">
+                        <el-form-item label="分类名称">
+                            <el-input v-model="pojo.name"></el-input>
+                        </el-form-item>
+
+                        <el-form-item label="是否显示">
+                            <el-switch
+                                    v-model="pojo.isShow"
+                                    active-color="#13ce66"
+                                    inactive-color="#ff4949"
+                                    active-value="1"
+                                    inactive-value="0">
+                            </el-switch>
+                        </el-form-item>
+                        <el-form-item label="是否导航">
+                            <el-switch
+                                    v-model="pojo.isMenu"
+                                    active-color="#13ce66"
+                                    inactive-color="#ff4949"
+                                    active-value="1"
+                                    inactive-value="0">
+                            </el-switch>
+                        </el-form-item>
+                        <el-form-item label="排序">
+                            <el-input v-model="pojo.seq"></el-input>
+                        </el-form-item>
+
+                        <el-form-item label="模板ID">
+                            <template slot-scope="scope">
+                                <template>
+                                    <el-select v-model="pojo.templateId" filterable placeholder="请选择">
+                                        <el-option
+                                                v-for="item in templateList"
+                                                :key="item.id"
+                                                :label="item.name"
+                                                :value="item.id">
+                                        </el-option>
+                                    </el-select>
+                                </template>
+                            </template>
+                        </el-form-item>
+
+                        <!-- 图片上传代码 如页面有图片上传功能放开注释 ****
+                        <el-form-item label="图片">
+                            <el-upload
+                                    class="avatar-uploader"
+                                    action="/upload/native.do"
+                                    :show-file-list="false"
+                                    :on-success="handleAvatarSuccess"
+                                    :before-upload="beforeAvatarUpload">
+                                <img v-if="imageUrl" :src="imageUrl" class="avatar">
+                                <i v-else class="el-icon-plus avatar-uploader-icon"></i>
+                            </el-upload>
+                        </el-form-item>
+                        -->
+
+                        <el-form-item>
+                            <el-button @click="save()" type="primary">保存</el-button>
+                            <el-button @click="formVisible = false">关闭</el-button>
+                        </el-form-item>
+                    </el-form>
+                </el-dialog>
+            </div>
+
+        </div>
+    </div>
+
+
+</div>
+</body>
+<script src="/js/vue.js"></script>
+<script src="/js/axios.js"></script>
+<script src="/js/elementui.js"></script>
+<script>
+    new Vue({
+        el: '#app',
+        data() {
+            return {
+                tableData: [],
+                currentPage: 1,
+                total: 10,
+                size: 10,
+                // 展示一级分类
+                searchMap: {parentId: 0},
+                pojo: {},
+                formVisible: false,
+                imageUrl: '',
+                parentIds: [],
+                //用于存如模板对象
+                templateList: []
+            }
+        },
+        created() {
+
+            this.fetchData();
+            // 获取模板中所有数据，新增是显示模板列表
+            axios.get(`/template/findAll.do`).then(response => {
+                this.templateList = response.data;
+            });
+
+        },
+        methods: {
+            fetchData() {
+                axios.post(`/category/findList.do`, this.searchMap).then(response => {
+                    this.tableData = response.data;
+                });
+            },
+            returnParentId() {
+                if (this.parentIds.length !== 0) {
+                    // 将数组中最后一个参数赋值给searchMap
+                    this.searchMap.parentId = this.parentIds[this.parentIds.length - 1];
+                    // 成功返回上一级后，将数组中最后一位剔除
+                    this.parentIds.splice(this.parentIds.length - 1, 1);
+                    this.fetchData();
+                }
+            },
+            goUp(parentId) {
+                if (parentId > 0) {
+
+                    this.searchMap.parentId = parentId - 1;
+                    this.fetchData();
+                }
+            },
+            goDown(parentId) {
+                if (parentId < 2) {
+                    this.push(this.searchMap.parentId);//像数组中添加已存在的parentId
+                    this.searchMap.parentId = parentId + 1;
+                    this.fetchData();
+                }
+            },
+            save() {
+                // this.pojo.image= this.imageUrl; //如页面有图片上传功能放开注释
+                axios.post(`/category/${this.pojo.id == null ? 'add' : 'update'}.do`, this.pojo).then(response => {
+                    this.fetchData(); //刷新列表
+                    this.formVisible = false;//关闭窗口
+                });
+            },
+            edit(id) {
+                this.formVisible = true; // 打开窗口
+                // 调用查询
+                axios.get(`/category/findById.do?id=${id}`).then(response => {
+                    this.pojo = response.data;
+                    // this.imageUrl=this.pojo.image //显示图片  如页面有图片上传功能放开注释
+                })
+            },
+            dele(id) {
+                this.$confirm('确定要删除此记录吗?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    axios.get(`/category/delete.do?id=${id}`).then(response => {
+
+                        if(response.data.code ===1){
+                            this.$message(response.data.message);
+                        }else{
+                            this.$message({
+                                type: 'success',
+                                message: '删除成功!'
+                            });
+                            this.fetchData(); //刷新列表
+                        }
+                    })
+                })
+            },
+            /* ****图片上传相关代码  如页面有图片上传功能放开注释 ****
+            handleAvatarSuccess(res, file) {
+                this.imageUrl = file.response;
+            },
+            beforeAvatarUpload(file) {
+                const isJPG = file.type === 'image/jpeg';
+                const isLt2M = file.size / 1024 / 1024 < 2;
+
+                if (!isJPG) {
+                    this.$message.error('上传头像图片只能是 JPG 格式!');
+                }
+                if (!isLt2M) {
+                    this.$message.error('上传头像图片大小不能超过 2MB!');
+                }
+                return isJPG && isLt2M;
+            }*/
+        }
+    })
+</script>
+</html>
