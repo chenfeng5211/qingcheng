@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>图片列表</title>
+    <!-- 引入样式 -->
+    <link rel="stylesheet" href="../css/elementui.css">
+    <link rel="stylesheet" href="../plugins/font-awesome/css/font-awesome.min.css">
+    <link rel="stylesheet" href="../css/style.css">
+
+    <style>
+        .avatar-uploader .el-upload {
+            border: 1px dashed #d9d9d9;
+            border-radius: 6px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .avatar-uploader .el-upload:hover {
+            border-color: #409EFF;
+        }
+
+        .avatar-uploader-icon {
+            font-size: 28px;
+            color: #8c939d;
+            width: 150px;
+            height: 70px;
+            line-height: 150px;
+            text-align: center;
+        }
+
+        .avatar {
+            width: 150px;
+            height: 70px;
+            display: block;
+        }
+
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <div class="app-container">
+        <div class="box">
+            <el-button type="primary"  class="butT" @click="formVisible=true;pojo={}">新增</el-button>
+            <div v-for ="image in imageList">
+                <template  >
+                    <img :src="image.url" width="200px" height="100px"/>
+                </template>
+            </div>
+
+            <div class="add-form">
+                <!--弹出窗口-->
+                <el-dialog  title="编辑" :visible.sync="formVisible" >
+                    <el-form label-width="80px">
+                        <el-form-item label="相册名称"><el-input v-model="pojo.title"></el-input></el-form-item>
+
+
+
+                        <!-- 图片上传代码 如页面有图片上传功能放开注释 ****-->
+                        <el-form-item label="相册封面">
+                            <el-upload
+                                    class="avatar-uploader"
+                                    action="/upload/oss.do?folder=album"
+                                    :show-file-list="false"
+                                    :on-success="handleAvatarSuccess"
+                                    :before-upload="beforeAvatarUpload">
+                                <img v-if="imageUrl" :src="imageUrl" class="avatar">
+                                <i v-else class="el-icon-plus avatar-uploader-icon"></i>
+                            </el-upload>
+                        </el-form-item>
+
+
+                        <el-form-item>
+                            <el-button type="primary" @click="save()">保存</el-button>
+                            <el-button @click="formVisible = false" >关闭</el-button>
+                        </el-form-item>
+                    </el-form>
+                </el-dialog>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script src="/js/vue.js"></script>
+<script src="/js/axios.js"></script>
+<script src="/js/elementui.js"></script>
+<script src="/js/util.js"></script>
+<script>
+    new Vue({
+        el: "#app",
+        data() {
+            return {
+                tableData: [],
+                pojo:{},
+                imageList:[],
+                formVisible:false,
+                imageUrl:'',
+                url:''
+
+            }
+        },
+        created() {
+            this.pojo.id=getQueryString('id');
+            this.fetchData(this.pojo.id);
+        },
+        methods: {
+            fetchData(id) {
+                axios.get(`/album/findById.do?id=${id}`).then(response => {
+                    this.pojo=response.data;
+                    this.imageList=JSON.parse(this.pojo.imageItems);
+                });
+            },
+            save() {
+
+                this.imageList.push({"url":"this.imageUrl"}); //如页面有图片上传功能放开注释
+                this.pojo.imageItems=JSON.stringify(this.imageList);//将 JavaScript 对象转换为字符串    JSON.parse() 方法将数据转换为 JavaScript 对象。
+                axios.post(`/album/${this.pojo.id == null ? 'add' : 'update'}.do`, this.pojo).then(response => {
+                    this.fetchData(); //刷新列表
+                    this.formVisible = false;//关闭窗口
+                });
+            },
+            edit(id) {
+                this.formVisible = true; // 打开窗口
+                // 调用查询
+                axios.get(`/brand/findById.do?id=${id}`).then(response => {
+                    this.pojo = response.data;
+                    this.imageUrl = this.pojo.image //显示图片  如页面有图片上传功能放开注释
+                })
+            },
+            dele(id) {
+                this.$confirm('确定要删除此记录吗?', '提示', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(() => {
+                    axios.get(`/brand/delete.do?id=${id}`).then(response => {
+                        this.fetchData(); //刷新列表
+                    })
+                })
+            },
+            /* ****图片上传相关代码  如页面有图片上传功能放开注释 **** */
+            handleAvatarSuccess(res, file) {
+                this.imageUrl = file.response;
+            },
+            beforeAvatarUpload(file) {
+                const isJPG = file.type === 'image/jpeg';
+                const isLt2M = file.size / 1024 / 1024 < 2;
+
+                if (!isJPG) {
+                    this.$message.error('上传头像图片只能是 JPG 格式!');
+                }
+                if (!isLt2M) {
+                    this.$message.error('上传头像图片大小不能超过 2MB!');
+                }
+                return isJPG && isLt2M;
+            }
+        }
+    })
+
+</script>
+</html>
