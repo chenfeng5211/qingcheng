@@ -1,4 +1,5 @@
 package com.qingcheng.service.impl;
+
 import com.alibaba.dubbo.config.annotation.Service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -9,6 +10,8 @@ import com.qingcheng.service.goods.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import tk.mybatis.mapper.entity.Example;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -102,6 +105,46 @@ public class CategoryServiceImpl implements CategoryService {
         }
         categoryMapper.deleteByPrimaryKey(id);
 
+    }
+
+    /**
+     * 查询首页分类导航
+     * @return
+     */
+    public List<Map> findCategoryByIsShow() {
+
+//        构建查询条件
+        Example example = new Example(Category.class);
+        Example.Criteria criteria = example.createCriteria();
+        criteria.andEqualTo("isShow", "1");//是否在主页显示
+        example.setOrderByClause("seq");//排序
+//        查询所有的种类
+        List<Category> categories = categoryMapper.selectByExample(example);
+        return categoryTree(categories, 0);
+    }
+
+    /**
+     * 递归遍历树形结构
+     * @param categories
+     * @param id
+     * @return
+     */
+    private List<Map> categoryTree(List<Category> categories, Integer id){
+
+//        定义集合存入处理了后的分类
+        List<Map> maps = new ArrayList<Map>();
+
+        for (Category category : categories) {
+            Map<String, Object> categoryMap = new HashMap<String, Object>();
+//            判断当前的种类的parentId与该种类的上级id是否相同
+            if(category.getParentId().equals(id)) {
+                categoryMap.put("name", category.getName());
+//                递归遍历，获取每个种类的下级分类的子集合
+                categoryMap.put("menus", categoryTree(categories, category.getId()));
+                maps.add(categoryMap);
+            }
+        }
+        return maps;
     }
 
     /**

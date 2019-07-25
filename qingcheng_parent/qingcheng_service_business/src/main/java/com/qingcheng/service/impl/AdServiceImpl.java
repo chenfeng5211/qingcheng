@@ -1,4 +1,5 @@
 package com.qingcheng.service.impl;
+
 import com.alibaba.dubbo.config.annotation.Service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -9,6 +10,7 @@ import com.qingcheng.service.business.AdService;
 import org.springframework.beans.factory.annotation.Autowired;
 import tk.mybatis.mapper.entity.Example;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -93,6 +95,26 @@ public class AdServiceImpl implements AdService {
      */
     public void delete(Integer id) {
         adMapper.deleteByPrimaryKey(id);
+    }
+
+
+    /**
+     * 功能描述:
+     *
+     * 根据首页位置查找轮播图
+     */
+
+    public List<Ad> findByPosition(String position) {
+
+//        创建查询条件
+        Example example = new Example(Ad.class);
+        Example.Criteria criteria = example.createCriteria();
+        criteria.andEqualTo("position", position); //确定轮播图首页
+        criteria.andLessThanOrEqualTo("startTime", new Date());//现在时间要小于轮播图规定最大时间
+        criteria.andGreaterThanOrEqualTo("endTime", new Date());//现在时间大于数据库中规定的最小时间
+        criteria.andEqualTo("status", "1");//注意状态
+        return adMapper.selectByExample(example);
+
     }
 
     /**
