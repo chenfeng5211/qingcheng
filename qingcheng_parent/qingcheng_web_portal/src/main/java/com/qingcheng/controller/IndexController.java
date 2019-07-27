@@ -44,7 +44,7 @@ public class IndexController {
         model.addAttribute("lbtList", lbtList);
 
 //        获取首页分类
-        List<Map> categoryList = categoryService.findCategoryByIsShow();
+        List<Map<String, Object>> categoryList = categoryService.findCategoryByIsShow();
         model.addAttribute("categoryList", categoryList);
 
 

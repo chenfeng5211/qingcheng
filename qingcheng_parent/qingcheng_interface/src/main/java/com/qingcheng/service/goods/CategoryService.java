@@ -32,6 +32,8 @@ public interface CategoryService {
 
     public void delete(Integer id);
 
-    public List<Map> findCategoryByIsShow();
+    public List<Map<String, Object>> findCategoryByIsShow();
+
+    public void saveCategoryToRedis();
 
 }

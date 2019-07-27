@@ -32,4 +32,12 @@ public interface SkuService {
 
     public void delete(String id);
 
+    public void savePriceToRedis();
+
+    public Integer  findPriceByRedis(String id);
+
+    public void editPriceToRedis(String id, Integer price);
+
+    public void deletePriceToRedis(String id);
+
 }

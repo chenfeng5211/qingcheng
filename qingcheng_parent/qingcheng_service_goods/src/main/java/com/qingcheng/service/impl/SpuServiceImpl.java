@@ -8,6 +8,7 @@ import com.github.pagehelper.PageHelper;
 import com.qingcheng.dao.*;
 import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.goods.*;
+import com.qingcheng.service.goods.SkuService;
 import com.qingcheng.service.goods.SpuService;
 import com.qingcheng.util.IdWorker;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,6 +46,9 @@ public class SpuServiceImpl implements SpuService {
 
     @Autowired
     private GoodRecyledMapper goodRecyledMapper;
+
+    @Autowired
+    private SkuService skuService;
     /**
      * 返回全部记录
      * @return
@@ -188,6 +192,10 @@ public class SpuServiceImpl implements SpuService {
 
 
             skuMapper.insertSelective(sku);
+
+//            向缓存中更新数据库
+            skuService.editPriceToRedis(sku.getId(), sku.getPrice());
+
         }
 
 //        建立分类与品牌关系
@@ -326,6 +334,7 @@ public class SpuServiceImpl implements SpuService {
         }
         spu.setIsMarketable("1");
         spuMapper.updateByPrimaryKeySelective(spu);
+
     }
 
 
@@ -368,9 +377,12 @@ public class SpuServiceImpl implements SpuService {
         if(spu == null){
             throw  new  RuntimeException("删除的商品不存在");
         }
-        List<Sku> skus = skuMapper.selectByExample(spu);
+        Example example = new Example(Sku.class);
+        example.createCriteria().andEqualTo("spuId", id);
+        List<Sku> skus = skuMapper.selectByExample(example);
         spu.setIsDelete("1");
         spuMapper.updateByPrimaryKeySelective(spu);
+
 
         for (Sku sku : skus) {
             GoodRecyled goodRecyled = new GoodRecyled();
@@ -382,6 +394,9 @@ public class SpuServiceImpl implements SpuService {
             goodRecyled.setSaleNum(spu.getSaleNum());
             goodRecyled.setSpuId(id);
             goodRecyledMapper.insertSelective(goodRecyled);
+            sku.setStatus("0");
+            skuMapper.updateByPrimaryKeySelective(sku);
+            skuService.deletePriceToRedis(sku.getId());
         }
 
 

@@ -7,7 +7,9 @@ import com.qingcheng.dao.CategoryMapper;
 import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.goods.Category;
 import com.qingcheng.service.goods.CategoryService;
+import com.qingcheng.util.CacheKey;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import tk.mybatis.mapper.entity.Example;
 
 import java.util.ArrayList;
@@ -20,6 +22,9 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Autowired
     private CategoryMapper categoryMapper;
+
+    @Autowired
+    private RedisTemplate<CacheKey, List<Map<String, Object>>> redisTemplate;
 
     /**
      * 返回全部记录
@@ -80,6 +85,7 @@ public class CategoryServiceImpl implements CategoryService {
      */
     public void add(Category category) {
         categoryMapper.insert(category);
+        saveCategoryToRedis();
     }
 
     /**
@@ -88,6 +94,7 @@ public class CategoryServiceImpl implements CategoryService {
      */
     public void update(Category category) {
         categoryMapper.updateByPrimaryKeySelective(category);
+        saveCategoryToRedis();
     }
 
     /**
@@ -104,23 +111,39 @@ public class CategoryServiceImpl implements CategoryService {
             throw new RuntimeException("有下级分类");
         }
         categoryMapper.deleteByPrimaryKey(id);
+        saveCategoryToRedis();
 
     }
 
     /**
-     * 查询首页分类导航
+     * 从查询首页分类导航
      * @return
      */
-    public List<Map> findCategoryByIsShow() {
+    public List<Map<String, Object>> findCategoryByIsShow() {
 
-//        构建查询条件
+        return redisTemplate.boundValueOps(CacheKey.CATEGORY_TREE).get();
+    }
+
+
+    /**
+     * 功能描述:
+     * 从数据查询到的商品类别同步到redis中
+     */
+
+    public void saveCategoryToRedis() {
+
+        //        构建查询条件
         Example example = new Example(Category.class);
         Example.Criteria criteria = example.createCriteria();
         criteria.andEqualTo("isShow", "1");//是否在主页显示
         example.setOrderByClause("seq");//排序
 //        查询所有的种类
         List<Category> categories = categoryMapper.selectByExample(example);
-        return categoryTree(categories, 0);
+
+
+        List<Map<String, Object>> categoryTree = categoryTree(categories, 0);
+
+        redisTemplate.boundValueOps(CacheKey.CATEGORY_TREE).set(categoryTree);
     }
 
     /**
@@ -129,10 +152,10 @@ public class CategoryServiceImpl implements CategoryService {
      * @param id
      * @return
      */
-    private List<Map> categoryTree(List<Category> categories, Integer id){
+    private List<Map<String, Object>> categoryTree(List<Category> categories, Integer id){
 
 //        定义集合存入处理了后的分类
-        List<Map> maps = new ArrayList<Map>();
+        List<Map<String, Object>> maps = new ArrayList<Map<String, Object>>();
 
         for (Category category : categories) {
             Map<String, Object> categoryMap = new HashMap<String, Object>();

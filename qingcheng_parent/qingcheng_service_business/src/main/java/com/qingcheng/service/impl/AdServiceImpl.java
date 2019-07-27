@@ -7,9 +7,12 @@ import com.qingcheng.dao.AdMapper;
 import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.business.Ad;
 import com.qingcheng.service.business.AdService;
+import com.qingcheng.util.CacheKey;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import tk.mybatis.mapper.entity.Example;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +22,9 @@ public class AdServiceImpl implements AdService {
 
     @Autowired
     private AdMapper adMapper;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 返回全部记录
@@ -79,6 +85,7 @@ public class AdServiceImpl implements AdService {
      */
     public void add(Ad ad) {
         adMapper.insert(ad);
+        saveAdByPositionToRedis(ad.getPosition());
     }
 
     /**
@@ -86,7 +93,17 @@ public class AdServiceImpl implements AdService {
      * @param ad
      */
     public void update(Ad ad) {
+
+//        查询修改前的广告
+        Ad key = adMapper.selectByPrimaryKey(ad.getId());
+
         adMapper.updateByPrimaryKeySelective(ad);
+//        当修改的不是位置时，直接同步到redis
+        saveAdByPositionToRedis(ad.getPosition());
+//        当修改的位置不同时，还需要对原来的位置同步
+        if(!key.getPosition().equals(ad.getPosition())){
+            saveAdByPositionToRedis(key.getPosition());
+        }
     }
 
     /**
@@ -94,7 +111,13 @@ public class AdServiceImpl implements AdService {
      * @param id
      */
     public void delete(Integer id) {
+
+        Ad ad = adMapper.selectByPrimaryKey(id);
+
+//        逻辑删除
         adMapper.deleteByPrimaryKey(id);
+
+        saveAdByPositionToRedis(ad.getPosition());
     }
 
 
@@ -106,15 +129,47 @@ public class AdServiceImpl implements AdService {
 
     public List<Ad> findByPosition(String position) {
 
-//        创建查询条件
+        return (List<Ad>) redisTemplate.boundHashOps(CacheKey.AD).get(position);
+
+    }
+
+
+    private List<String> position(){
+        ArrayList<String> positionList = new ArrayList<String>();
+        positionList.add("web_index_lb");
+        return positionList;
+    }
+    /**
+     * 功能描述:
+     * 将说有广告同步到redis中
+     */
+
+    public void saveAdAllToRedis() {
+        List<String> positionList = position();
+        for (String position : positionList) {
+            //        创建查询条件
+            saveAdByPositionToRedis(position);
+
+        }
+    }
+
+
+    /**
+     * 功能描述:
+     * 根据单个位置添加广告到redis
+     */
+
+    public void saveAdByPositionToRedis(String position) {
+        //        创建查询条件
         Example example = new Example(Ad.class);
         Example.Criteria criteria = example.createCriteria();
         criteria.andEqualTo("position", position); //确定轮播图首页
         criteria.andLessThanOrEqualTo("startTime", new Date());//现在时间要小于轮播图规定最大时间
         criteria.andGreaterThanOrEqualTo("endTime", new Date());//现在时间大于数据库中规定的最小时间
         criteria.andEqualTo("status", "1");//注意状态
-        return adMapper.selectByExample(example);
+        List<Ad> ads = adMapper.selectByExample(example);
 
+        redisTemplate.boundHashOps(CacheKey.AD).put(position, ads);
     }
 
     /**
