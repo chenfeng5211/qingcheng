@@ -2,13 +2,17 @@ package com.qingcheng.service.impl;
 import com.alibaba.dubbo.config.annotation.Service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
+import com.qingcheng.dao.CategoryMapper;
 import com.qingcheng.dao.SpecMapper;
 import com.qingcheng.dao.TemplateMapper;
 import com.qingcheng.entity.PageResult;
+import com.qingcheng.pojo.goods.Category;
 import com.qingcheng.pojo.goods.Spec;
 import com.qingcheng.pojo.goods.Template;
 import com.qingcheng.service.goods.SpecService;
+import com.qingcheng.util.CacheKey;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
@@ -23,6 +27,12 @@ public class SpecServiceImpl implements SpecService {
 
     @Autowired
     private TemplateMapper templateMapper;
+
+    @Autowired
+    private CategoryMapper categoryMapper;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 返回全部记录
@@ -109,6 +119,22 @@ public class SpecServiceImpl implements SpecService {
         template.setSpecNum(template.getSpecNum() - 1);
         templateMapper.updateByPrimaryKeySelective(template);
         specMapper.deleteByPrimaryKey(id);
+    }
+
+
+    /**
+     * 功能描述:
+     * 根据分类将规格添加到缓存中
+     */
+
+    public void saveSpecByCategoryToRedis() {
+        if(!redisTemplate.hasKey(CacheKey.CATEGORY_SPEC)) {
+            List<Category> categoryList = categoryMapper.selectAll();
+            for (Category category : categoryList) {
+                List<Map> specList = specMapper.findSpecByCategory(category.getName());
+                redisTemplate.boundHashOps(CacheKey.CATEGORY_SPEC).put(category.getName(), specList);
+            }
+        }
     }
 
     /**

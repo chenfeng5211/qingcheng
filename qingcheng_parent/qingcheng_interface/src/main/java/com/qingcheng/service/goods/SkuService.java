@@ -2,6 +2,7 @@ package com.qingcheng.service.goods;
 import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.goods.Sku;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -39,5 +40,7 @@ public interface SkuService {
     public void editPriceToRedis(String id, Integer price);
 
     public void deletePriceToRedis(String id);
+
+    public void findAllToElasticSearch() throws IOException;
 
 }

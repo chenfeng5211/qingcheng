@@ -32,4 +32,5 @@ public interface BrandService {
 
     public void delete(Integer id);
 
+    public void saveBrandByCategoryToRedis();
 }

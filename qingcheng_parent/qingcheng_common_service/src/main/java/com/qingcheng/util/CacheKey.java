@@ -24,5 +24,8 @@ public enum  CacheKey {
     CATEGORY_TREE,
 //    sku商品价格
     SKU_PRICE,
-
+//    品牌
+    CATEGORY_BRAND,
+//    规格
+    CATEGORY_SPEC,
 }

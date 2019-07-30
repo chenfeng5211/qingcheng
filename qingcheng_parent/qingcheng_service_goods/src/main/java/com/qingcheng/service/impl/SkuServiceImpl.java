@@ -1,5 +1,7 @@
 package com.qingcheng.service.impl;
+
 import com.alibaba.dubbo.config.annotation.Service;
+import com.alibaba.fastjson.JSON;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.qingcheng.dao.SkuMapper;
@@ -7,10 +9,21 @@ import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.goods.Sku;
 import com.qingcheng.service.goods.SkuService;
 import com.qingcheng.util.CacheKey;
+import org.apache.http.HttpHost;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import tk.mybatis.mapper.entity.Example;
 
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -147,6 +160,80 @@ public class SkuServiceImpl implements SkuService {
 
     public void deletePriceToRedis(String id) {
         redisTemplate.boundHashOps(CacheKey.SKU_PRICE).delete(id);
+    }
+
+
+    /**
+     * 功能描述:
+     *
+     * 查询所有的sku商品并存入到到ElasticSearch
+     */
+
+    public void findAllToElasticSearch() throws IOException {
+
+//        获取所有的数据并分页
+        PageHelper.startPage(1,5000);
+        Page<Sku> skus = (Page<Sku>) skuMapper.selectAll();
+        int totalPage = skus.getPages();
+        System.out.println(totalPage);
+        System.out.println(skus.getTotal());
+
+//        连接rest接口
+        HttpHost http=new HttpHost("127.0.0.1",9200,"http");
+        RestClientBuilder builder= RestClient.builder(http);//rest构建器
+        RestHighLevelClient restHighLevelClient=new RestHighLevelClient(builder);//高级客户端对象
+
+//        封装请求对象
+        BulkRequest bulkRequest = new BulkRequest();
+
+        for (int i = 1; i <= totalPage; i++) {
+
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            PageHelper.startPage(i,5000);
+            Page<Sku> skuPage = (Page<Sku>) skuMapper.selectAll();
+            List<Sku> skuList = skuPage.getResult();
+            for (Sku sku : skuList) {
+                IndexRequest indexRequest=new IndexRequest("sku","doc",sku.getId());
+                Map<String, Object> map = new HashMap<String, Object>();
+                map.put("name", sku.getName());
+                map.put("price", sku.getPrice());
+                map.put("image", sku.getImage());
+                if(sku.getCategoryName() != null) {
+                    map.put("createTime", sdf.format(sku.getCreateTime()));
+                }
+                map.put("spuId", sku.getSpuId());
+                map.put("categoryName", sku.getCategoryName());
+                map.put("brandName", sku.getBrandName());
+                map.put("saleNum", sku.getSaleNum());
+                map.put("commentNum", sku.getCommentNum());
+
+//                将json转换成json对象
+                Map<String, Object> specMap = (Map<String, Object>) JSON.parseObject(sku.getSpec());
+                map.put("spec", specMap);
+
+                indexRequest.source(map);
+                bulkRequest.add(indexRequest);
+            }
+            BulkResponse response = restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+            int status = response.status().getStatus();
+            System.out.println(status + i);
+
+        }
+
+//        获取响应结果
+        try {
+            BulkResponse response = restHighLevelClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+            int status = response.status().getStatus();
+            System.out.println(status);
+
+
+            String message = response.buildFailureMessage();
+            System.out.println(message);
+            restHighLevelClient.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
     }
 
     /**

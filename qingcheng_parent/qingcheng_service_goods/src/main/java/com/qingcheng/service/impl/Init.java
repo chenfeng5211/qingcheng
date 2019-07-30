@@ -9,8 +9,10 @@
  */
 package com.qingcheng.service.impl;
 
+import com.qingcheng.service.goods.BrandService;
 import com.qingcheng.service.goods.CategoryService;
 import com.qingcheng.service.goods.SkuService;
+import com.qingcheng.service.goods.SpecService;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -30,6 +32,12 @@ public class Init implements InitializingBean {
     private CategoryService categoryService;
 
     @Autowired
+    private BrandService brandService;
+
+    @Autowired
+    private SpecService specService;
+
+    @Autowired
     private SkuService skuService;
 
     public void afterPropertiesSet() throws Exception {
@@ -37,5 +45,8 @@ public class Init implements InitializingBean {
         System.out.println("缓存来了");
         categoryService.saveCategoryToRedis();
         skuService.savePriceToRedis();
+        brandService.saveBrandByCategoryToRedis();
+        specService.saveSpecByCategoryToRedis();
+        System.out.println("缓存结束");
     }
 }

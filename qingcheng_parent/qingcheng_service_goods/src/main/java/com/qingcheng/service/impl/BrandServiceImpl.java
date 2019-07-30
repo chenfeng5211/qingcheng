@@ -3,10 +3,14 @@ import com.alibaba.dubbo.config.annotation.Service;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.qingcheng.dao.BrandMapper;
+import com.qingcheng.dao.CategoryMapper;
 import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.goods.Brand;
+import com.qingcheng.pojo.goods.Category;
 import com.qingcheng.service.goods.BrandService;
+import com.qingcheng.util.CacheKey;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import tk.mybatis.mapper.entity.Example;
 
 import java.util.List;
@@ -17,6 +21,12 @@ public class BrandServiceImpl implements BrandService {
 
     @Autowired
     private BrandMapper brandMapper;
+
+    @Autowired
+    private CategoryMapper categoryMapper;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     /**
      * 返回全部记录
@@ -93,6 +103,25 @@ public class BrandServiceImpl implements BrandService {
      */
     public void delete(Integer id) {
         brandMapper.deleteByPrimaryKey(id);
+    }
+
+
+    /**
+     * 功能描述:
+     * 根据分类将品牌存到缓存中
+     */
+
+    public void saveBrandByCategoryToRedis() {
+        if(!redisTemplate.hasKey(CacheKey.CATEGORY_BRAND)) {
+//        获取所有的分类
+            List<Category> categoryList = categoryMapper.selectAll();
+
+            for (Category category : categoryList) {
+//            获取每个分类的所有品牌
+                List<Map> brandList = brandMapper.findBrandByCategoryName(category.getName());
+                redisTemplate.boundHashOps(CacheKey.CATEGORY_BRAND).put(category.getName(), brandList);
+            }
+        }
     }
 
     /**
