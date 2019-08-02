@@ -22,6 +22,7 @@
         <module>qingcheng_common_web</module>
         <module>qingcheng_web_portal</module>
         <module>qingcheng_service_es</module>
+        <module>qingcheng_service_sms</module>
     </modules>
 
     <packaging>pom</packaging>
@@ -209,6 +210,7 @@
                 <artifactId>xml-apis</artifactId>
                 <version>1.4.01</version>
             </dependency>
+
         </dependencies>
     </dependencyManagement>
     <dependencies>

@@ -28,4 +28,6 @@ public enum  CacheKey {
     CATEGORY_BRAND,
 //    规格
     CATEGORY_SPEC,
+//    rabbitMQ,验证码，消息通知，群发等
+    MQ,
 }

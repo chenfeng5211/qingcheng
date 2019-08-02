@@ -43,6 +43,12 @@ public class SearchController {
 
 //        字符集处理
         searchMap = WebUtil.convertCharsetToUTF8(searchMap);
+
+//        判断前端是否传入当前页，没有默认展示第一页
+        searchMap.putIfAbsent("pageNo", "1");
+
+        searchMap.putIfAbsent("sort", "");
+        searchMap.putIfAbsent("sortOrder", "1");
         Map resultMap = searchService.goodsSearch(searchMap);
 
         model.addAttribute("resultMap", resultMap);
@@ -57,6 +63,11 @@ public class SearchController {
         model.addAttribute("url", url);
 
         model.addAttribute("searchMap", searchMap);
+
+//        当前页类型转换，前端判断
+        Long pageNo = Long.parseLong(searchMap.get("pageNo"));
+        model.addAttribute("pageNo", pageNo);
+
 
 
         return "search";

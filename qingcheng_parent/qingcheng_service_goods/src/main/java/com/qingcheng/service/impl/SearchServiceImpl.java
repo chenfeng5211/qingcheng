@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -26,6 +27,9 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
+import org.elasticsearch.search.sort.SortOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.io.IOException;
@@ -101,8 +105,7 @@ public class SearchServiceImpl implements SearchService {
 
         }
 
-        searchSourceBuilder.query(boolQueryBuilder);
-        searchRequest.source(searchSourceBuilder);
+
 //        1.3分类分组
         TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("sku_category").field("categoryName");
         searchSourceBuilder.aggregation(termsAggregationBuilder);
@@ -125,7 +128,34 @@ public class SearchServiceImpl implements SearchService {
 
         }
 
+        searchSourceBuilder.query(boolQueryBuilder);
 
+//        1.4分页设置
+//        获取当前页
+        int pageNo = Integer.parseInt(searchMap.get("pageNo"));
+
+        int pageSize = 30;
+        //每页开始显示记录位置
+        int fromSize = (pageNo - 1) * pageSize;
+
+//        每页记录数开始位置
+        searchSourceBuilder.from(fromSize);
+//        每页显示数目
+        searchSourceBuilder.size(pageSize);
+
+//        1.5排序条件封装
+        if(!"".equals(searchMap.get("sort"))) {//判断，综合默认不排序
+            searchSourceBuilder.sort(searchMap.get("sort"), SortOrder.valueOf(searchMap.get("sortOrder")));
+        }
+
+
+//           1.6 搜索高亮条件封装
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        highlightBuilder.field("name").preTags("<font style='color:red'>").postTags("</font>");
+        searchSourceBuilder.highlighter(highlightBuilder);
+
+
+        searchRequest.source(searchSourceBuilder);
         HashMap<String, Object> resultMap = new HashMap<String, Object>();
 
         try {
@@ -134,7 +164,7 @@ public class SearchServiceImpl implements SearchService {
             SearchResponse searchResponse = restHighLevelClient.search(searchRequest, RequestOptions.DEFAULT);
             SearchHits searchHits = searchResponse.getHits();
 //            2.1搜索结果
-            long totalHits = searchHits.getTotalHits();
+
             SearchHit[] hits = searchHits.getHits();
 
             List<Map> mapList = new ArrayList<Map>();
@@ -191,7 +221,44 @@ public class SearchServiceImpl implements SearchService {
                 resultMap.put("specList", specList);
             }
 
+//            2.5分页展示
+//            获取总数据
+            long totalHits = searchHits.getTotalHits();
+//            总页数
+            long totalPages = totalHits % pageSize == 0 ? totalHits / pageSize : totalHits / pageSize -1;
 
+            resultMap.put("totalPages", totalPages);
+
+            if(totalPages > 9) {
+//            开始页
+                long startPage = pageNo - 4;
+                if (startPage <= 1) {
+                    startPage = 1;
+                }
+//            结束页
+                long endPage = startPage + 8;
+                if (endPage >= totalPages) {
+                    endPage = totalPages;
+                }
+                resultMap.put("startPage", startPage);
+                resultMap.put("endPage", endPage);
+            }
+
+//            2.6高亮结果查询
+            List<Map> hightList = new ArrayList<Map>();
+            for (SearchHit hit : hits) {
+                Map<String, Object> hitMap = hit.getSourceAsMap();
+//                获取高亮的集合
+                Map<String, HighlightField> hightMap = hit.getHighlightFields();
+//                获取高亮的对象
+                HighlightField name = hightMap.get("name");
+//                获取高亮数组
+                Text[] fragments = name.getFragments();
+                hitMap.put("name", fragments[0].toString());
+                hightList.add(hitMap);
+            }
+
+            resultMap.put("r", hightList);
         } catch (IOException e) {
             e.printStackTrace();
         }

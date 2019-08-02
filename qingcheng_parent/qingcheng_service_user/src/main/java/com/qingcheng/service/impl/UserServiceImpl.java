@@ -1,19 +1,35 @@
 package com.qingcheng.service.impl;
 import com.alibaba.dubbo.config.annotation.Service;
+import com.alibaba.fastjson.JSON;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.qingcheng.dao.UserMapper;
 import com.qingcheng.entity.PageResult;
 import com.qingcheng.pojo.user.User;
 import com.qingcheng.service.user.UserService;
+import com.qingcheng.util.BCrypt;
+import com.qingcheng.util.CacheKey;
+import com.qingcheng.util.IDUtils;
+import com.qingcheng.util.PhoneFormatCheckUtils;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import tk.mybatis.mapper.entity.Example;
 
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class UserServiceImpl implements UserService {
+
+    @Autowired
+    private RedisTemplate redisTemplate;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     @Autowired
     private UserMapper userMapper;
@@ -96,7 +112,86 @@ public class UserServiceImpl implements UserService {
     }
 
 
+    /**
+     * 功能描述:
+     *
+     * 通过用户手机好生成验证码，封装到map中
+     *  保存到redis中，
+     *  发送到rabbitMQ转换器中
+     */
 
+    public void sendSms(String phone) {
+
+//        校验手机号是否正确
+        PhoneFormatCheckUtils.isPhoneLegal(phone);
+
+
+//        1.生成6位数验证码
+        String code = IDUtils.genId();
+        System.out.println(code);
+        Map<String, String> codeMap = new HashMap<String, String>();
+        codeMap.put("phone", phone);
+        codeMap.put("code", code);
+
+//        2.保存到redis中
+        redisTemplate.boundHashOps(CacheKey.MQ).put("code_"+phone, code);
+//        对验证码设置时效性5min
+        redisTemplate.expire("code_"+phone, 5, TimeUnit.MINUTES);
+
+
+//        3.发送到转换器中
+//        需要将电话号码和验证码都发送到转换器，所以封装到map,再将map转换成字符串传递到MQ
+        String codeString = JSON.toJSONString(codeMap);
+        rabbitTemplate.convertAndSend("","queue.sms", codeString);
+
+
+    }
+
+
+    /**
+     * 功能描述:
+     *
+     * 添加用户
+     * @Date: 2019/8/1 0001 20:46
+     */
+
+    public void addUser(User user, String code){
+//        校验参数
+        if(user == null){
+            throw new RuntimeException("当前未发现注册用户");
+        }
+        int row = userMapper.selectCount(user);
+//        查询当前用户是否存在
+        if(row>0){
+            throw new RuntimeException("当前手机号已注册");
+        }
+//        当用户没有设置用户名，设置用户名称
+        if(user.getUsername() == null){
+            user.setUsername(user.getPhone());
+        }
+        Object redisPhone = redisTemplate.boundHashOps(CacheKey.MQ).get("code_" + user.getPhone());
+        if(redisPhone == null){
+            throw new RuntimeException("验证码以过期，请重新发送");
+        }
+
+        if(!redisPhone.equals(code)){
+            throw new RuntimeException("验证码错误");
+        }
+
+//        密码加密
+        String hashpw = BCrypt.hashpw(user.getPhone(), BCrypt.gensalt());
+        user.setPassword(hashpw);
+        user.setStatus("0");
+        user.setIsEmailCheck("0");
+        user.setIsMobileCheck("1");
+        user.setPoints(0);
+        user.setCreated(new Date());
+        user.setUpdated(new Date());
+
+//        存入数据库
+        userMapper.insert(user);
+
+    }
 
     /**
      * 构建查询条件

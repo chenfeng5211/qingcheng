@@ -33,4 +33,7 @@ public interface UserService {
     public void delete(String username);
 
 
+    public void sendSms(String phone);
+
+    public void addUser(User user, String code);
 }
