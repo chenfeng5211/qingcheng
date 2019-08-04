@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                          http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--连接工厂-->
+    <rabbit:connection-factory id="connectionFactory" host="127.0.0.1" port="5672" username="guest" password="guest"
+                               publisher-confirms="true"/>
+
+    <rabbit:template id="rabbitTemplate" connection-factory="connectionFactory"/>
+    <!--    rabbitAmin是一个封装了操作队列和交换器的类-->
+    <rabbit:admin connection-factory="connectionFactory"/>
+    <!--    创建商品详情themeleaf添加删除队列-->
+    <rabbit:queue name="queue.sku.add"/>
+    <rabbit:queue name="queue.sku.delete"/>
+<!--    创建索引库中商品详情添加删除队列-->
+    <rabbit:queue name="queue.es.add"/>
+    <rabbit:queue name="queue.es.delete"/>
+<!--    创建商品上架交换器-->
+    <rabbit:fanout-exchange name="exchange.put">
+        <rabbit:bindings>
+            <rabbit:binding queue="queue.sku.add"/>
+            <rabbit:binding queue="queue.es.add"/>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+<!--    创建商品下架交换器-->
+    <rabbit:fanout-exchange name="exchange.down">
+        <rabbit:bindings>
+            <rabbit:binding queue="queue.sku.delete"/>
+            <rabbit:binding queue="queue.es.delete"/>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+
+</beans>

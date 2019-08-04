@@ -125,7 +125,6 @@ public class UserServiceImpl implements UserService {
 //        校验手机号是否正确
         PhoneFormatCheckUtils.isPhoneLegal(phone);
 
-
 //        1.生成6位数验证码
         String code = IDUtils.genId();
         System.out.println(code);
@@ -137,8 +136,6 @@ public class UserServiceImpl implements UserService {
         redisTemplate.boundHashOps(CacheKey.MQ).put("code_"+phone, code);
 //        对验证码设置时效性5min
         redisTemplate.expire("code_"+phone, 5, TimeUnit.MINUTES);
-
-
 //        3.发送到转换器中
 //        需要将电话号码和验证码都发送到转换器，所以封装到map,再将map转换成字符串传递到MQ
         String codeString = JSON.toJSONString(codeMap);

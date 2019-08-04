@@ -11,14 +11,12 @@ import com.qingcheng.pojo.goods.*;
 import com.qingcheng.service.goods.SkuService;
 import com.qingcheng.service.goods.SpuService;
 import com.qingcheng.util.IdWorker;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service(interfaceClass = SpuService.class)
 public class SpuServiceImpl implements SpuService {
@@ -49,8 +47,13 @@ public class SpuServiceImpl implements SpuService {
 
     @Autowired
     private SkuService skuService;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
     /**
      * 返回全部记录
+     *
      * @return
      */
     public List<Spu> findAll() {
@@ -59,18 +62,20 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 分页查询
+     *
      * @param page 页码
      * @param size 每页记录数
      * @return 分页结果
      */
     public PageResult<Spu> findPage(int page, int size) {
-        PageHelper.startPage(page,size);
+        PageHelper.startPage(page, size);
         Page<Spu> spus = (Page<Spu>) spuMapper.selectAll();
-        return new PageResult<Spu>(spus.getTotal(),spus.getResult());
+        return new PageResult<Spu>(spus.getTotal(), spus.getResult());
     }
 
     /**
      * 条件查询
+     *
      * @param searchMap 查询条件
      * @return
      */
@@ -81,20 +86,22 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 分页+条件查询
+     *
      * @param searchMap
      * @param page
      * @param size
      * @return
      */
     public PageResult<Spu> findPage(Map<String, Object> searchMap, int page, int size) {
-        PageHelper.startPage(page,size);
+        PageHelper.startPage(page, size);
         Example example = createExample(searchMap);
         Page<Spu> spus = (Page<Spu>) spuMapper.selectByExample(example);
-        return new PageResult<Spu>(spus.getTotal(),spus.getResult());
+        return new PageResult<Spu>(spus.getTotal(), spus.getResult());
     }
 
     /**
      * 根据Id查询
+     *
      * @param id
      * @return
      */
@@ -104,6 +111,7 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 新增
+     *
      * @param spu
      */
     public void add(Spu spu) {
@@ -112,6 +120,7 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 修改
+     *
      * @param spu
      */
     public void update(Spu spu) {
@@ -119,12 +128,13 @@ public class SpuServiceImpl implements SpuService {
     }
 
     /**
-     *  删除
+     * 删除
+     *
      * @param id
      */
     public void delete(String id) {
         Spu spu = spuMapper.selectByPrimaryKey(id);
-        if(!"1".equals(spu.getIsDelete())) {
+        if (!"1".equals(spu.getIsDelete())) {
             throw new RuntimeException("不是逻辑删除，无法真正删除");
         }
         spuMapper.deleteByPrimaryKey(id);
@@ -133,7 +143,6 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 保存商品spu和scu
-     *
      */
 
     @Transactional
@@ -143,14 +152,14 @@ public class SpuServiceImpl implements SpuService {
 //        获取分类对象
         Spu spu = goods.getSpu();
 //        判断spuId是否为空，进而判断执行的是修改还是添加方法
-        if(spu.getId()!=null){
+        if (spu.getId() != null) {
             spuMapper.updateByPrimaryKeySelective(spu);
 
             Example example = new Example(Sku.class);
             example.createCriteria().orEqualTo("spuId", spu.getId());
 
             skuMapper.deleteByExample(example);
-        }else {
+        } else {
 //        设置雪花分布式id并转化成字符串
             spu.setId(idWorker.nextId() + "");
 //        保存spu
@@ -162,7 +171,7 @@ public class SpuServiceImpl implements SpuService {
 //        循环插入sku
         for (Sku sku : goods.getSkuList()) {
 //            新增
-            if(sku.getId() == null) {
+            if (sku.getId() == null) {
 //            设置雪花分布式id并转化成字符串
                 sku.setId(idWorker.nextId() + "");
                 sku.setCreateTime(date);//创建时间
@@ -172,7 +181,7 @@ public class SpuServiceImpl implements SpuService {
             StringBuilder name = new StringBuilder(spu.getName());
 
 //            未启用规格处理
-            if(StringUtils.isEmpty(sku.getSpec())){
+            if (StringUtils.isEmpty(sku.getSpec())) {
                 sku.setSpec("{}");
             }
 //            将规格参数转换成json格式并存入到map集合中
@@ -204,7 +213,7 @@ public class SpuServiceImpl implements SpuService {
         categoryBrand.setBrandId(spu.getBrandId());
 //        判断是否已经有值
         int count = categoryBrandMapper.selectCount(categoryBrand);
-        if(count == 0) {
+        if (count == 0) {
             categoryBrandMapper.insertSelective(categoryBrand);
         }
 
@@ -212,7 +221,7 @@ public class SpuServiceImpl implements SpuService {
     }
 
 
-//    修改回显
+    //    修改回显
     public Goods findGoodsById(String id) {
 //        查询spu
         Spu spu = spuMapper.selectByPrimaryKey(id);
@@ -238,7 +247,7 @@ public class SpuServiceImpl implements SpuService {
         spu.setId(id);
         spu.setStatus(status);
 
-        if("1".equals(status)){
+        if ("1".equals(status)) {
             spu.setIsMarketable("1");
         }
         Spu spu1 = spuMapper.selectByPrimaryKey(id);
@@ -247,7 +256,6 @@ public class SpuServiceImpl implements SpuService {
         goodsOperateLog.setIsMarketableOld(spu1.getIsMarketable());
         goodsOperateLog.setIsStatusOld(spu1.getStatus());
         int i = spuMapper.updateByPrimaryKeySelective(spu);
-
 
 
 //        记录商品审核记录
@@ -273,20 +281,43 @@ public class SpuServiceImpl implements SpuService {
     /**
      * 功能描述:
      * 修改商品下架，上架修改为下架，下架不修改
+     *
      * @Date: 2019/7/17 0017 16:43
      */
 
+    @Transactional
     public void pull(String id) {
+//        1.封装商品下架条件
         Date date = new Date();
         Spu spu = new Spu();
         spu.setId(id);
         spu.setIsMarketable("0");
+
+
+//        2.封装skuId发送到MQ
+        //        获取sku对象
+        Example example = new Example(Sku.class);
+        example.createCriteria().andEqualTo("spuId", id);
+        List<Sku> skus = skuMapper.selectByExample(example);
+
+        for (Sku sku : skus) {
+//        将skuId封装到map集合
+            Map<String, String> skuIdMap = new HashMap<String, String>();
+            skuIdMap.put("skuId", sku.getId());
+
+//        转换成json字符串
+            String jsonMap = JSON.toJSONString(skuIdMap);
+            rabbitTemplate.convertAndSend("exchange.down", "", jsonMap);
+
+        }
+
+//        3.操作日志
         Spu spu1 = spuMapper.selectByPrimaryKey(id);
+
         GoodsOperateLog goodsOperateLog = new GoodsOperateLog();
         goodsOperateLog.setIsDeleteOld(spu1.getIsDelete());
         goodsOperateLog.setIsMarketableOld(spu1.getIsMarketable());
         goodsOperateLog.setIsStatusOld(spu1.getStatus());
-
 
         goodsOperateLog.setId(idWorker.nextId() + "");
         goodsOperateLog.setIsDeleteNow(spu.getIsDelete());
@@ -294,6 +325,8 @@ public class SpuServiceImpl implements SpuService {
         goodsOperateLog.setIsStatusNow(spu.getStatus());
         goodsOperateLog.setOperateTime(date);
         goodsOperateLog.setSpuId(id);
+
+//        4.更新日志和spu数据库
         goodsOperateLogMapper.insertSelective(goodsOperateLog);
         spuMapper.updateByPrimaryKeySelective(spu);
     }
@@ -326,13 +359,37 @@ public class SpuServiceImpl implements SpuService {
      * 功能描述:
      * 修改商品上架
      */
-
+    @Transactional
     public void put(String id) {
         Spu spu = spuMapper.selectByPrimaryKey(id);
-        if(!"1".equals(spu.getStatus())){
+        if (!"1".equals(spu.getStatus())) {
             throw new RuntimeException("审核未通过");
         }
         spu.setIsMarketable("1");
+
+        Example example = new Example(Sku.class);
+        example.createCriteria().andEqualTo("spuId", id);
+        List<Sku> skus = skuMapper.selectByExample(example);
+        for (Sku sku : skus) {
+//        封装json字符串
+            HashMap<String, Object> itemMap = new HashMap<String, Object>();
+            itemMap.put("sku", sku);
+            itemMap.put("spu", spu);
+
+//        获取种类集合,并封装当前id下的分类
+            List<String> categories = new ArrayList<String>();
+            categories.add(categoryMapper.selectByPrimaryKey(spu.getCategory1Id()).getName());
+            categories.add(categoryMapper.selectByPrimaryKey(spu.getCategory2Id()).getName());
+            categories.add(categoryMapper.selectByPrimaryKey(spu.getCategory3Id()).getName());
+            itemMap.put("categories", categories);
+
+
+
+            String jsonMap = JSON.toJSONString(itemMap);
+
+//        发送到RabbitMQ
+            rabbitTemplate.convertAndSend("exchange.put", "", jsonMap);
+        }
         spuMapper.updateByPrimaryKeySelective(spu);
 
     }
@@ -340,7 +397,7 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 功能描述:
-     *
+     * <p>
      * 批量上架
      */
 
@@ -374,8 +431,8 @@ public class SpuServiceImpl implements SpuService {
 //        Spu spu = new Spu();
 //        spu.setIsDelete("1");
         Spu spu = spuMapper.selectByPrimaryKey(id);
-        if(spu == null){
-            throw  new  RuntimeException("删除的商品不存在");
+        if (spu == null) {
+            throw new RuntimeException("删除的商品不存在");
         }
         Example example = new Example(Sku.class);
         example.createCriteria().andEqualTo("spuId", id);
@@ -413,7 +470,7 @@ public class SpuServiceImpl implements SpuService {
 //        spu.setIsDelete("0");
 //        修改spu是否删除状态
         Spu spu = spuMapper.selectByPrimaryKey(id);
-        if(spu == null){
+        if (spu == null) {
             throw new RuntimeException("查找的商品不存在");
         }
         spu.setIsDelete("0");
@@ -429,101 +486,102 @@ public class SpuServiceImpl implements SpuService {
 
     /**
      * 构建查询条件
+     *
      * @param searchMap
      * @return
      */
-    private Example createExample(Map<String, Object> searchMap){
-        Example example=new Example(Spu.class);
+    private Example createExample(Map<String, Object> searchMap) {
+        Example example = new Example(Spu.class);
         Example.Criteria criteria = example.createCriteria();
-        if(searchMap!=null){
+        if (searchMap != null) {
             // 主键
-            if(searchMap.get("id")!=null && !"".equals(searchMap.get("id"))){
-                criteria.andLike("id","%"+searchMap.get("id")+"%");
+            if (searchMap.get("id") != null && !"".equals(searchMap.get("id"))) {
+                criteria.andLike("id", "%" + searchMap.get("id") + "%");
             }
             // 货号
-            if(searchMap.get("sn")!=null && !"".equals(searchMap.get("sn"))){
-                criteria.andLike("sn","%"+searchMap.get("sn")+"%");
+            if (searchMap.get("sn") != null && !"".equals(searchMap.get("sn"))) {
+                criteria.andLike("sn", "%" + searchMap.get("sn") + "%");
             }
             // SPU名
-            if(searchMap.get("name")!=null && !"".equals(searchMap.get("name"))){
-                criteria.andLike("name","%"+searchMap.get("name")+"%");
+            if (searchMap.get("name") != null && !"".equals(searchMap.get("name"))) {
+                criteria.andLike("name", "%" + searchMap.get("name") + "%");
             }
             // 副标题
-            if(searchMap.get("caption")!=null && !"".equals(searchMap.get("caption"))){
-                criteria.andLike("caption","%"+searchMap.get("caption")+"%");
+            if (searchMap.get("caption") != null && !"".equals(searchMap.get("caption"))) {
+                criteria.andLike("caption", "%" + searchMap.get("caption") + "%");
             }
             // 图片
-            if(searchMap.get("image")!=null && !"".equals(searchMap.get("image"))){
-                criteria.andLike("image","%"+searchMap.get("image")+"%");
+            if (searchMap.get("image") != null && !"".equals(searchMap.get("image"))) {
+                criteria.andLike("image", "%" + searchMap.get("image") + "%");
             }
             // 图片列表
-            if(searchMap.get("images")!=null && !"".equals(searchMap.get("images"))){
-                criteria.andLike("images","%"+searchMap.get("images")+"%");
+            if (searchMap.get("images") != null && !"".equals(searchMap.get("images"))) {
+                criteria.andLike("images", "%" + searchMap.get("images") + "%");
             }
             // 售后服务
-            if(searchMap.get("saleService")!=null && !"".equals(searchMap.get("saleService"))){
-                criteria.andLike("saleService","%"+searchMap.get("saleService")+"%");
+            if (searchMap.get("saleService") != null && !"".equals(searchMap.get("saleService"))) {
+                criteria.andLike("saleService", "%" + searchMap.get("saleService") + "%");
             }
             // 介绍
-            if(searchMap.get("introduction")!=null && !"".equals(searchMap.get("introduction"))){
-                criteria.andLike("introduction","%"+searchMap.get("introduction")+"%");
+            if (searchMap.get("introduction") != null && !"".equals(searchMap.get("introduction"))) {
+                criteria.andLike("introduction", "%" + searchMap.get("introduction") + "%");
             }
             // 规格列表
-            if(searchMap.get("specItems")!=null && !"".equals(searchMap.get("specItems"))){
-                criteria.andLike("specItems","%"+searchMap.get("specItems")+"%");
+            if (searchMap.get("specItems") != null && !"".equals(searchMap.get("specItems"))) {
+                criteria.andLike("specItems", "%" + searchMap.get("specItems") + "%");
             }
             // 参数列表
-            if(searchMap.get("paraItems")!=null && !"".equals(searchMap.get("paraItems"))){
-                criteria.andLike("paraItems","%"+searchMap.get("paraItems")+"%");
+            if (searchMap.get("paraItems") != null && !"".equals(searchMap.get("paraItems"))) {
+                criteria.andLike("paraItems", "%" + searchMap.get("paraItems") + "%");
             }
             // 是否上架
-            if(searchMap.get("isMarketable")!=null && !"".equals(searchMap.get("isMarketable"))){
-                criteria.andLike("isMarketable","%"+searchMap.get("isMarketable")+"%");
+            if (searchMap.get("isMarketable") != null && !"".equals(searchMap.get("isMarketable"))) {
+                criteria.andLike("isMarketable", "%" + searchMap.get("isMarketable") + "%");
             }
             // 是否启用规格
-            if(searchMap.get("isEnableSpec")!=null && !"".equals(searchMap.get("isEnableSpec"))){
-                criteria.andLike("isEnableSpec","%"+searchMap.get("isEnableSpec")+"%");
+            if (searchMap.get("isEnableSpec") != null && !"".equals(searchMap.get("isEnableSpec"))) {
+                criteria.andLike("isEnableSpec", "%" + searchMap.get("isEnableSpec") + "%");
             }
             // 是否删除
-            if(searchMap.get("isDelete")!=null && !"".equals(searchMap.get("isDelete"))){
-                criteria.andLike("isDelete","%"+searchMap.get("isDelete")+"%");
+            if (searchMap.get("isDelete") != null && !"".equals(searchMap.get("isDelete"))) {
+                criteria.andLike("isDelete", "%" + searchMap.get("isDelete") + "%");
             }
             // 审核状态
-            if(searchMap.get("status")!=null && !"".equals(searchMap.get("status"))){
-                criteria.andLike("status","%"+searchMap.get("status")+"%");
+            if (searchMap.get("status") != null && !"".equals(searchMap.get("status"))) {
+                criteria.andLike("status", "%" + searchMap.get("status") + "%");
             }
 
             // 品牌ID
-            if(searchMap.get("brandId")!=null ){
-                criteria.andEqualTo("brandId",searchMap.get("brandId"));
+            if (searchMap.get("brandId") != null) {
+                criteria.andEqualTo("brandId", searchMap.get("brandId"));
             }
             // 一级分类
-            if(searchMap.get("category1Id")!=null ){
-                criteria.andEqualTo("category1Id",searchMap.get("category1Id"));
+            if (searchMap.get("category1Id") != null) {
+                criteria.andEqualTo("category1Id", searchMap.get("category1Id"));
             }
             // 二级分类
-            if(searchMap.get("category2Id")!=null ){
-                criteria.andEqualTo("category2Id",searchMap.get("category2Id"));
+            if (searchMap.get("category2Id") != null) {
+                criteria.andEqualTo("category2Id", searchMap.get("category2Id"));
             }
             // 三级分类
-            if(searchMap.get("category3Id")!=null ){
-                criteria.andEqualTo("category3Id",searchMap.get("category3Id"));
+            if (searchMap.get("category3Id") != null) {
+                criteria.andEqualTo("category3Id", searchMap.get("category3Id"));
             }
             // 模板ID
-            if(searchMap.get("templateId")!=null ){
-                criteria.andEqualTo("templateId",searchMap.get("templateId"));
+            if (searchMap.get("templateId") != null) {
+                criteria.andEqualTo("templateId", searchMap.get("templateId"));
             }
             // 运费模板id
-            if(searchMap.get("freightId")!=null ){
-                criteria.andEqualTo("freightId",searchMap.get("freightId"));
+            if (searchMap.get("freightId") != null) {
+                criteria.andEqualTo("freightId", searchMap.get("freightId"));
             }
             // 销量
-            if(searchMap.get("saleNum")!=null ){
-                criteria.andEqualTo("saleNum",searchMap.get("saleNum"));
+            if (searchMap.get("saleNum") != null) {
+                criteria.andEqualTo("saleNum", searchMap.get("saleNum"));
             }
             // 评论数
-            if(searchMap.get("commentNum")!=null ){
-                criteria.andEqualTo("commentNum",searchMap.get("commentNum"));
+            if (searchMap.get("commentNum") != null) {
+                criteria.andEqualTo("commentNum", searchMap.get("commentNum"));
             }
 
         }

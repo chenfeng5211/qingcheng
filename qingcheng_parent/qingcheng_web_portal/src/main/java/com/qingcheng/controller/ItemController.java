@@ -53,6 +53,8 @@ public class ItemController {
     @Autowired
     private TemplateEngine templateEngine;
 
+
+
     @RequestMapping("/itemStatus")
     public void getItemStaticHtml(String spuId){
 
@@ -172,6 +174,8 @@ public class ItemController {
 //        使用模板引擎生成静态页面
 //        template:模板页面  context：数据模型 writer：输出位置
             templateEngine.process("item", context, printWriter);
+            printWriter.close();
+
         }
     }
 }

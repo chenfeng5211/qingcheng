@@ -12,6 +12,7 @@
 </head>
 
 <body>
+<div id="app">
 	<!-- 头部栏位 -->
 	<!--页面顶部-->
 	<div id="nav-bottom" >
@@ -22,9 +23,15 @@
 					<div class="shortcut">
 						<ul class="fl">
 							<li class="f-item">青橙欢迎您！</li>
-							<li class="f-item">请
-								<a href="login.html" target="_blank">登录</a>
-								<span>
+							<li class="f-item">
+                                 <span v-if="username==''">
+
+								<a href="login.html" >请登录</a>
+                                </span>
+                                <span v-if="username!=''">
+                                    {{username}}<a href="/logout/cas">退出登录</a>
+                                </span >
+								<span >
 									<a href="register.html" target="_blank">免费注册</a>
 								</span>
 							</li>
@@ -1230,6 +1237,7 @@
 							</a>
 							<span class="close-panel J-close" onclick="cartPanelView.tbar_panel_close('cart');"></span>
 						</h3>
+						</h3>
 						<div class="tbar-panel-main">
 							<div class="tbar-panel-content J-panel-content">
 								<div id="J-cart-tips" class="tbar-tipbox hide">
@@ -1356,10 +1364,26 @@
 
 		</div>
 	</div>
-
+</div>
 	<script type="text/javascript" src="./js/all.js"></script>
 	<script type="text/javascript" src="./js/plugins/jquery/jquery.min.js"></script>
 	<script type="text/javascript" src="./js/pages/index.js"></script>
 </body>
-
+<script src="/js/vue.js"></script>
+<script src="/js/axios.js"></script>
+<script>
+    new Vue({
+        el:'#app',
+        data(){
+            return{
+                username:''
+            }
+        },
+        created(){
+            axios.get(`/login/username.do`).then(response=>{
+                this.username=response.data.username;
+            });
+        }
+    });
+</script>
 </html>

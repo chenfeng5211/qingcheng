@@ -23,6 +23,10 @@
         <module>qingcheng_web_portal</module>
         <module>qingcheng_service_es</module>
         <module>qingcheng_service_sms</module>
+        <module>qingcheng_service_page</module>
+        <module>qingcheng_service_index</module>
+        <module>qingcheng_common_cas</module>
+        <module>qingcheng_web_center</module>
     </modules>
 
     <packaging>pom</packaging>
@@ -189,6 +193,7 @@
                 <artifactId>spring-security-taglibs</artifactId>
                 <version>${spring.security.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>com.github.penggle</groupId>
                 <artifactId>kaptcha</artifactId>

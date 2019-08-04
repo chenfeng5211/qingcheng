@@ -1,10 +1,14 @@
 package com.qingcheng.pojo.goods;
 
 
+import javax.persistence.Id;
+import javax.persistence.Table;
 import java.util.Date;
 
+@Table(name="tb_goods_operate_log")
 public class GoodsOperateLog {
 
+    @Id
   private String id;
   private String operator;
   private Date operateTime;

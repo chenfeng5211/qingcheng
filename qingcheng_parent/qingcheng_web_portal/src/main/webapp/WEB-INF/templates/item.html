@@ -1863,7 +1863,7 @@
 							</div>
 							<div class="fl price">
 								<i>¥</i>
-								<em >
+								<em v-cloak>
                                     {{price}}
                                 </em>
 								<span>降价通知</span>
@@ -2774,8 +2774,8 @@
 	<script type="text/javascript" src="./js/plugins/jquery.jqzoom/jquery.jqzoom.js"></script>
 	<script type="text/javascript" src="./js/plugins/jquery.jqzoom/zoom.js"></script>
 </body>
-<script src="/js/vue.js"></script>
-<script src="/js/axios.js"></script>
+<script src="js/vue.js"></script>
+<script src="js/axios.js"></script>
 <script th:inline="javascript">
     new Vue({
         el:'#app',
@@ -2787,7 +2787,7 @@
         },
 
         created(){
-            axios.get(`http://localhost:9103/sku/price.do?id=`+this.skuId).then(response=>{
+            axios.get(`http://localhost:9103/sku/price.do?id=${this.skuId}`).then(response=>{
                 this.price=(response.data/100).toFixed(2);
             })
         }
