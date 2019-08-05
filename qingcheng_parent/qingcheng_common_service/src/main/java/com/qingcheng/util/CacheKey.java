@@ -30,4 +30,8 @@ public enum  CacheKey {
     CATEGORY_SPEC,
 //    rabbitMQ,验证码，消息通知，群发等
     MQ,
+//    购物车
+    CART,
+//    分类直接存入到缓存
+    CATEGORY,
 }

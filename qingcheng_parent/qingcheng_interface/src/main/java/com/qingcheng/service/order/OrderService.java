@@ -45,4 +45,14 @@ public interface OrderService {
     public void mergeOrder(String orderId1, String orderId2);
 
     public void splitOrder(List<OrderItem> orderItemList, String orderId);
+
+    public List<Map<String, Object>> findCart(String username);
+
+    public void addItemToCart(String username, String skuId, Integer num);
+
+    public void updateChecked(String username, String skuId, boolean checked);
+
+    public void deleteChecked(String username);
+
+    public Integer getPreMoney(String username);
 }
