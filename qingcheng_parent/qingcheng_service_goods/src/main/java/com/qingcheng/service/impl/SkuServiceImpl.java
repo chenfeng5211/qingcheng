@@ -19,6 +19,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
 import java.io.IOException;
@@ -27,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Service
+@Service(interfaceClass = SkuService.class)
 public class SkuServiceImpl implements SkuService {
 
     @Autowired
@@ -233,6 +234,32 @@ public class SkuServiceImpl implements SkuService {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+    }
+
+
+    /**
+     * 功能描述:
+     *
+     * 根据id和售卖num更新销售数量和库存量
+     */
+
+    @Transactional
+    public void updateStockNumSaleNum(String skuId, Integer num) {
+
+        Sku sku = skuMapper.selectByPrimaryKey(skuId);
+        if(sku==null){
+            throw new RuntimeException("无此商品");
+        }
+        if(num > sku.getNum()){
+            throw new RuntimeException("库存不足");
+        }
+        if(!"1".equals(sku.getStatus())){
+            throw new RuntimeException("商品已下架");
+        }
+
+        skuMapper.reduceStockNum(skuId, num);
+        skuMapper.addSaleNum(skuId, num);
 
     }
 

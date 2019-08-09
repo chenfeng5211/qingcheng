@@ -127,8 +127,10 @@ public class AdServiceImpl implements AdService {
      * 根据首页位置查找轮播图
      */
 
-    public List<Ad> findByPosition(String position) {
+    public List<Ad> findByP(String position) {
 
+
+//        return adMapper.selectAll();
         return (List<Ad>) redisTemplate.boundHashOps(CacheKey.AD).get(position);
 
     }

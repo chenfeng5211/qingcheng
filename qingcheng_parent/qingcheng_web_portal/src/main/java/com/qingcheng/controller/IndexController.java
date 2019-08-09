@@ -40,7 +40,7 @@ public class IndexController {
     public String index(Model model){
 
 //        获取轮播图
-        List<Ad> lbtList = adService.findByPosition("web_index_lb");
+        List<Ad> lbtList = adService.findByP("web_index_lb");
         model.addAttribute("lbtList", lbtList);
 
 //        获取首页分类

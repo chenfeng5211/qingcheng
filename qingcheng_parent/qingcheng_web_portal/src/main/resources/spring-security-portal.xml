@@ -9,6 +9,7 @@
 
     <http pattern="/index.do" security="none"/>
     <http pattern="/search.do" security="none"/>
+    <http pattern="/pay/notify.do" security="none"/>
 
 
 </beans:beans>

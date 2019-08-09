@@ -43,4 +43,14 @@ public interface SkuService {
 
     public void findAllToElasticSearch() throws IOException;
 
+
+    /**
+     * 功能描述:
+     *
+     * 根据销售数量和商品skuid
+     * 更新sku销量和库存信息
+     */
+
+    public void updateStockNumSaleNum(String skuId, Integer num);
+
 }

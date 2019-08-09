@@ -9,4 +9,5 @@
         <constructor-arg name="datacenterId" value="1"/>
         <constructor-arg name="workerId" value="2"/>
     </bean>
+    <bean class="com.github.wxpay.sdk.Config" id="config"></bean>
 </beans>

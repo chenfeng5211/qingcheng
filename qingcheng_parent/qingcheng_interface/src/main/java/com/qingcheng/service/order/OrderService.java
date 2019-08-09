@@ -46,13 +46,35 @@ public interface OrderService {
 
     public void splitOrder(List<OrderItem> orderItemList, String orderId);
 
-    public List<Map<String, Object>> findCart(String username);
 
-    public void addItemToCart(String username, String skuId, Integer num);
+    /**
+     * 功能描述:
+     *
+     *
+     *  生成支付订单
+     */
 
-    public void updateChecked(String username, String skuId, boolean checked);
+    public Map<String, Object> saveOrder(Order order);
 
-    public void deleteChecked(String username);
 
-    public Integer getPreMoney(String username);
+    /**
+     * 功能描述:
+     *
+     * 订单支付成功后更新订单信息
+     */
+
+    public void updatePayedStatus(String payType, String orderId, String transactionId);
+
+
+    /**
+     * 功能描述:
+     *  订单未正常完成，关闭订单
+     *
+     * @param orderId 订单id
+     * @return: void
+     * @since: 1.0.0
+     * @Author:chenf
+     * @Date: 2019/8/9 0009 0:35
+     */
+    public void closeOrder(String orderId);
 }

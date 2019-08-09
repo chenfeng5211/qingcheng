@@ -43,6 +43,7 @@ public class OrderItemServiceImpl implements OrderItemService {
      * @param searchMap 查询条件
      * @return
      */
+    @Override
     public List<OrderItem> findList(Map<String, Object> searchMap) {
         Example example = createExample(searchMap);
         return orderItemMapper.selectByExample(example);
@@ -83,6 +84,7 @@ public class OrderItemServiceImpl implements OrderItemService {
      * 修改
      * @param orderItem
      */
+    @Override
     public void update(OrderItem orderItem) {
         orderItemMapper.updateByPrimaryKeySelective(orderItem);
     }
@@ -91,9 +93,11 @@ public class OrderItemServiceImpl implements OrderItemService {
      *  删除
      * @param id
      */
+    @Override
     public void delete(String id) {
         orderItemMapper.deleteByPrimaryKey(id);
     }
+
 
     /**
      * 构建查询条件

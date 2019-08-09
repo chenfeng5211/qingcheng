@@ -3,6 +3,7 @@ package com.qingcheng.service.impl;
 import com.alibaba.druid.util.StringUtils;
 import com.alibaba.dubbo.config.annotation.Reference;
 import com.alibaba.dubbo.config.annotation.Service;
+import com.alibaba.fastjson.JSON;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.qingcheng.dao.OrderConfigMapper;
@@ -10,24 +11,25 @@ import com.qingcheng.dao.OrderItemMapper;
 import com.qingcheng.dao.OrderLogMapper;
 import com.qingcheng.dao.OrderMapper;
 import com.qingcheng.entity.PageResult;
-import com.qingcheng.pojo.goods.Category;
-import com.qingcheng.pojo.goods.Sku;
 import com.qingcheng.pojo.order.*;
-import com.qingcheng.service.goods.CategoryService;
 import com.qingcheng.service.goods.SkuService;
+import com.qingcheng.service.order.CartService;
 import com.qingcheng.service.order.OrderService;
-import com.qingcheng.service.order.PreferentialService;
-import com.qingcheng.util.CacheKey;
+import com.qingcheng.service.order.WxPayService;
 import com.qingcheng.util.IdWorker;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service(interfaceClass = OrderService.class)
 public class OrderServiceImpl implements OrderService {
@@ -48,16 +50,17 @@ public class OrderServiceImpl implements OrderService {
     private OrderConfigMapper orderConfigMapper;
 
     @Autowired
-    private RedisTemplate redisTemplate;
-
-    @Autowired
-    private PreferentialService preferentialService;
+    private CartService cartService;
 
     @Reference
     private SkuService skuService;
 
-    @Reference
-    private CategoryService categoryService;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private WxPayService wxPayService;
+
 
     /**
      * 返回全部记录
@@ -420,7 +423,7 @@ public class OrderServiceImpl implements OrderService {
             if (oldOrderItemNum <= 1) {
                 continue;
             }
-            if(newOrderItemNum.equals(oldOrderItemNum)){
+            if (newOrderItemNum.equals(oldOrderItemNum)) {
                 throw new RuntimeException("拆分数量相同");
             }
             if (newOrderItemNum > oldOrderItemNum) {
@@ -502,213 +505,151 @@ public class OrderServiceImpl implements OrderService {
 
     /**
      * 功能描述:
-     *
-     * 获取购物车商品
-     * @param username 用户明哥
+     * 生成订单并获取订单单号和支付金额
      */
 
     @Override
-    public List<Map<String, Object>> findCart(String username) {
+    public Map<String, Object> saveOrder(Order order) {
 
-//        从redis中获取购物车中的商品数据,
-        List<Map<String, Object>> cartList = (List<Map<String, Object>>) redisTemplate.boundHashOps(CacheKey.CART).get(username);
 
-//        判断购物车中有无商品没有创建一个空的list集合
-        if (cartList == null){
-            cartList= new ArrayList<Map<String, Object>>();
+//        1.更新价格(更新选中的价格)
+        List<OrderItem> payOrderItemList =
+                cartService.findPayOrderItem(order.getUsername()).stream().
+                        map(cart -> (OrderItem) cart.get("item")).collect(Collectors.toList());
+
+        for (OrderItem orderItem : payOrderItemList) {
+
+            //          2.更新库存和销量(必要判断已在updateStockNumSaleNum进行了相关操作)
+            skuService.updateStockNumSaleNum(orderItem.getSkuId(), orderItem.getNum());
         }
-        System.out.println("进入购物车");
-        return cartList;
+        try {
+//      3.封装订单明细封装订单明细
+            order.setId(idWorker.nextId() + "");//订单id
+//        通过stream封装总订单和总金额
+            IntStream orderNum = payOrderItemList.stream().mapToInt(OrderItem::getNum);
+            IntStream orderMoney = payOrderItemList.stream().mapToInt(OrderItem::getMoney);
+
+            int totalMoney = orderMoney.sum();
+            order.setTotalNum(orderNum.sum()); //订单总数
+            order.setTotalMoney(totalMoney);//订单总金额
+
+            order.setPreMoney(cartService.getPreMoney(order.getUsername()));//订单优惠金额
+//            stream只能被只用一次
+//            order.setPayMoney(orderMoney.sum() - cartService.getPreMoney(order.getUsername()));//订单支付金额
+            order.setPayMoney(totalMoney-cartService.getPreMoney(order.getUsername()));
+            order.setCreateTime(new Date());//支付金额
+            order.setOrderStatus("0");//待支付
+            order.setPayStatus("0");//未支付
+            order.setConsignStatus("0");//未发货
+            order.setIsDelete("0");//未删除
+
+            orderMapper.insertSelective(order);
+
+//            添加延迟消息
+            rabbitTemplate.convertAndSend("", "queue.order", order.getId());
+
+            double ratio = (double) order.getPreMoney() / order.getTotalNum();
+
+            for (OrderItem orderItem : payOrderItemList) {
+                orderItem.setId(idWorker.nextId() + "");//从表id
+                orderItem.setOrderId(order.getId());//主表id
+                orderItem.setIsReturn("0");//未退货
+                orderItem.setPayMoney((int) (orderItem.getMoney() * ratio));//实际支付金额
+                orderItemMapper.insertSelective(orderItem);
+            }
+
+//            int i = 1/0;
+//        4.清除选中的购物车列表
+            cartService.deleteChecked(order.getUsername());
+
+//        5.封装返回值
+            Map<String, Object> map = new HashMap<String, Object>();
+            map.put("orderId", order.getId());
+            map.put("payMoney", order.getPayMoney());
+            return map;
+        } catch (Exception e) {
+            e.printStackTrace();
+            rabbitTemplate.convertAndSend("", "queue.stock", JSON.toJSONString(payOrderItemList));
+            throw new RuntimeException("订单生成失败");
+        }
     }
 
-    /**
-     * 向购物车添加修改删除商品
-     * @param username 当前购物车所属用户
-     * @param skuId 商品详情
-     * @param num 商品数量
-     * @return
-     */
     @Override
-    public void addItemToCart(String username, String skuId, Integer num) {
+    @Transactional
+    public void updatePayedStatus(String payType, String orderId, String transactionId) {
+//        1.更新支付成功后订单装填
+        Order order = orderMapper.selectByPrimaryKey(orderId);
+        if(order != null && "0".equals(order.getPayStatus())) {
 
-//        1.获取购物车中的所有商品
-        List<Map<String, Object>> cartList = findCart(username);
+            order.setId(orderId);
+            order.setPayStatus("1");
+            order.setOrderStatus("1");
+            order.setPayTime(new Date());
+            order.setTransactionId(transactionId);
+            order.setUpdateTime(new Date());
+            order.setPayType(payType);
+            orderMapper.updateByPrimaryKeySelective(order);
 
-//        定义标记，判断当前商品是否已在购物车中,默认不在
-        Boolean flag = false;
-//        遍历每个商品
-        for (Map<String, Object> cartMap : cartList) {
-
-//            获取itemOrder对象
-            OrderItem item = (OrderItem) cartMap.get("item");
-
-//        2.当购物车已有该商品操作
-           if(skuId.equals(item.getSkuId())){
-
-                Integer orderNum = item.getNum(); //原来的购物车商品数量
-               Integer newNum = orderNum + num;
-                item.setNum(newNum); //更新商品数量
-               if (newNum <= 0){
-                   cartList.remove(cartMap);
-               }
-                item.setWeight(item.getWeight() / orderNum * newNum); //更新该商品总重量
-                item.setMoney(item.getMoney() / orderNum * newNum); //更新商品总价格
-
-                cartMap.put("item", item);
-                cartMap.put("checked", true);
-                flag = true;
-                break;
-            }
-        }
-//        3.当购物车没有该该商品操作
-        if(!flag){
-
-//            获取当前的商品
-                Sku sku = skuService.findById(skuId);
-
-            if(sku == null){
-                    throw new RuntimeException("无该商品");
-            }
-
-            if(!"1".equals(sku.getStatus())){
-                throw new RuntimeException("该商品以下架或删除");
-            }
-
-            if(num <=0){
-                throw new RuntimeException("至少添加一个商品");
-            }
-
-            OrderItem orderItem = new OrderItem();
-
-//            分类
-            orderItem.setCategoryId3(sku.getCategoryId()); //三级
-
-//            二级
-            Category category3 = (Category) redisTemplate.boundHashOps(CacheKey.CATEGORY).get(sku.getCategoryId());
-            if(category3 == null){
-                category3 = categoryService.findById(sku.getCategoryId());
-                redisTemplate.boundHashOps(CacheKey.CATEGORY).put(sku.getCategoryId(), category3);
-            }
-            orderItem.setCategoryId2(category3.getParentId());
-
-//            一级
-            Category category2 = (Category) redisTemplate.boundHashOps(CacheKey.CATEGORY).get(category3.getParentId());
-            if(category2 == null){
-                category2 = categoryService.findById(category3.getParentId());
-                redisTemplate.boundHashOps(CacheKey.CATEGORY).put(category3.getParentId(), category2);
-            }
-            orderItem.setCategoryId1(category2.getParentId());
-
-
-            orderItem.setId(idWorker.nextId()+"");
-            orderItem.setSpuId(sku.getSpuId());
-            orderItem.setSkuId(sku.getId());
-            orderItem.setOrderId(idWorker.nextId()+"");
-            orderItem.setName(sku.getName());
-            orderItem.setPrice(sku.getPrice());
-            orderItem.setNum(num);
-            orderItem.setMoney(sku.getPrice() * num);
-            orderItem.setImage(sku.getImage());
-            if(sku.getWeight()<0){
-                sku.setWeight(0);
-            }
-            orderItem.setWeight(sku.getWeight() * num);
-
-            Map<String, Object> cartMap = new HashMap<>();
-            cartMap.put("item", orderItem);
-            cartMap.put("checked", true);
-
-            cartList.add(cartMap);
+//        2.更新订单日志
+            OrderLog orderLog = new OrderLog();
+            orderLog.setConsignStatus("0");
+            orderLog.setId(idWorker.nextId() + "");
+            orderLog.setOperater("system");
+            orderLog.setOperateTime(new Date());
+            orderLog.setOrderId(orderId);
+            orderLog.setOrderStatus("1");
+            orderLog.setPayStatus("1");
+            orderLog.setRemarks("流水号:" + transactionId);
+            orderLogMapper.insertSelective(orderLog);
         }
 
-        redisTemplate.boundHashOps(CacheKey.CART).put(username, cartList);
+
+
     }
 
-    /**
-     * 修改是否选中
-     * @param username 当前用户
-     * @param skuId 当前商品id
-     * @param checked true  false
-     */
     @Override
-    public void updateChecked(String username, String skuId, boolean checked) {
-//        1.获取所有购物车商品并循环遍历
-        List<Map<String, Object>> cartList = (List<Map<String, Object>>) redisTemplate.boundHashOps(CacheKey.CART).get(username);
+    public void closeOrder(String orderId) {
+//        1.关闭微信订单
+        wxPayService.closeOrder(orderId);
+        Map<String, String> orderQuery = wxPayService.findOrder(orderId);
+        if("CLOSED".equals(orderQuery.get("trade_state")) && "SUCCESS".equals(orderQuery.get("result_code"))){
+//            2.封装订单相关信息
+            Order order = orderMapper.selectByPrimaryKey(orderId);
+            if(order != null && "0".equals(order.getPayStatus())) {
+                order.setUpdateTime(new Date());
+                order.setCloseTime(new Date());
+                order.setOrderStatus("4");
+                orderMapper.updateByPrimaryKeySelective(order);
+                System.out.println("超时支付测试‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’");
+//            3.记录日志
+                OrderLog orderLog = new OrderLog();
+                orderLog.setConsignStatus("0");
+                orderLog.setId(idWorker.nextId() + "");
+                orderLog.setOperater("system");
+                orderLog.setOperateTime(new Date());
+                orderLog.setOrderId(orderId);
+                orderLog.setOrderStatus("4");
+                orderLog.setPayStatus("0");
+                orderLog.setRemarks("流水号:" + orderQuery.get("transaction_id"));
+                orderLogMapper.insertSelective(orderLog);
 
-        boolean flag = false;
-        if(cartList != null) {
-            for (Map<String, Object> cartMap : cartList) {
-                OrderItem item = (OrderItem) cartMap.get("item");
-                if(skuId.equals(item.getSkuId())){
-//                      2.判断状态
-                    if(!cartMap.get("checked").equals(checked)){
-                       cartMap.put("checked", checked);
-                       flag = true;
-                       break;
-                   }
+//            4.恢复库存
+                Example example = new Example(OrderItem.class);
+                Example.Criteria criteria = example.createCriteria();
+                criteria.andEqualTo("orderId", orderId);
+                List<OrderItem> orderItems = orderItemMapper.selectByExample(example);
+                for (OrderItem orderItem : orderItems) {
+                    System.out.println("超时支付库存‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’‘’");
+
+//                    恢复库存和销量
+                    skuService.updateStockNumSaleNum(orderItem.getSkuId(), -orderItem.getNum());
                 }
+
+
             }
         }
 
-//        3.重新存入缓存
-        if(flag) {
-            redisTemplate.boundHashOps(CacheKey.CART).put(username, cartList);
-        }
 
-    }
-
-    /**
-     * 删除选中商品
-     */
-    @Override
-    public void deleteChecked(String username) {
-        List<Map<String, Object>> cartList = (List<Map<String, Object>>) redisTemplate.boundHashOps(CacheKey.CART).get(username);
-
-
-        if(cartList != null) {
-             cartList = cartList.stream().filter(cartMap -> !((boolean) cartMap.get("checked"))).collect(Collectors.toList());
-             redisTemplate.boundHashOps(CacheKey.CART).put(username, cartList);
-        }
-
-
-    }
-
-
-    /**
-     * 功能描述:
-     * 获取商品优惠后的实际金额
-     */
-
-    @Override
-    public Integer getPreMoney(String username) {
-
-
-        List<Map<String, Object>> cartList = (List<Map<String, Object>>) redisTemplate.boundHashOps(CacheKey.CART).get(username);
-
-//        1.获取选中的orderItem集合
-
-        assert cartList != null;
-        List<OrderItem> orderItemList = cartList.stream().
-                filter(cartMap -> ((boolean) cartMap.get("checked"))).
-                map(cart -> (OrderItem) cart.get("item")).collect(Collectors.toList());
-
-//        2.以分裂类id为key，金额为value封装map集合
-        Map<Integer, IntSummaryStatistics> map = orderItemList.stream().collect(Collectors.groupingBy(OrderItem::getCategoryId3, Collectors.summarizingInt(OrderItem::getMoney)));
-
-        int preMoney = 0;
-        for (Integer categoryId : map.keySet()) {
-
-//            获取每个分类所有商品金额之和
-            int sumMoney = (int) map.get(categoryId).getSum();
-
-//           3.调用优惠方法获取优惠优惠后金额
-            preMoney += preferentialService.getPreMoney(categoryId, sumMoney);
-
-            System.out.println("测试优惠金额："+preMoney);
-        }
-
-
-        return preMoney;
     }
 
 

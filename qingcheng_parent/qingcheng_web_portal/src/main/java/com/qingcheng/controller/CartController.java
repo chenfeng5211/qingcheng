@@ -11,7 +11,9 @@ package com.qingcheng.controller;
 
 import com.alibaba.dubbo.config.annotation.Reference;
 import com.qingcheng.entity.Result;
-import com.qingcheng.service.order.OrderService;
+import com.qingcheng.pojo.user.Address;
+import com.qingcheng.service.order.CartService;
+import com.qingcheng.service.user.AddressService;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,7 +37,10 @@ import java.util.Map;
 public class CartController {
 
     @Reference
-    private OrderService orderService;
+    private CartService cartService;
+
+    @Reference
+    private AddressService addressService;
 
 
     /**
@@ -51,7 +56,7 @@ public class CartController {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
 
-        return orderService.findCart(username);
+        return cartService.findCart(username);
     }
 
     /**
@@ -65,7 +70,7 @@ public class CartController {
     public Result addItem(String skuId, int num){
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        orderService.addItemToCart(username, skuId, num);
+        cartService.addItemToCart(username, skuId, num);
         return new Result();
     }
 
@@ -80,7 +85,7 @@ public class CartController {
     public void toCart(HttpServletResponse response, String skuId, Integer num) throws IOException {
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        orderService.addItemToCart(username, skuId, num);
+        cartService.addItemToCart(username, skuId, num);
 
 
         response.sendRedirect("/cart.html");
@@ -97,7 +102,7 @@ public class CartController {
     public Result updateChecked(String skuId, boolean checked){
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        orderService.updateChecked(username, skuId, checked);
+        cartService.updateChecked(username, skuId, checked);
 
         return new Result();
     }
@@ -111,22 +116,54 @@ public class CartController {
     @RequestMapping("/deleteChecked")
     public Result deleteChecked(){
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        orderService.deleteChecked(username);
+        cartService.deleteChecked(username);
 
         return new Result();
     }
 
+    /**
+     *  获取优惠金额
+     * @return
+     */
     @RequestMapping("/preMoney")
     public Map getPreMoney(){
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Integer preMoney = orderService.getPreMoney(username);
+        Integer preMoney = cartService.getPreMoney(username);
 
         Map<String, Integer> map = new HashMap<>();
 
         map.put("preMoney", preMoney);
         return map;
+    }
+
+
+    /**
+     * 功能描述:
+     * 订单页面展示选中购物车商品
+     */
+
+    @RequestMapping("/findOrderItem")
+    public List<Map<String, Object>> findOrderItem(){
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
+
+        return cartService.findPayOrderItem(username);
+    }
+
+
+    /**
+     * 功能描述:
+     *
+     * 根据当前的登录用户名查找地址
+     */
+
+    @RequestMapping("/findByUsername")
+    public List<Address> findByUsername(){
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return addressService.findByUsername(username);
     }
 
 }
